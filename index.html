@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Ask a Tax Question</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 1em;
+    }
+    #response {
+      margin-top: 20px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h2>Ask your UK tax question</h2>
+  <input id="questionInput" type="text" placeholder="e.g. How much tax will I pay on £30k income?" />
+  <button onclick="askQuestion()">Submit</button>
+  <div id="response"></div>
+
+  <script>
+    async function askQuestion() {
+      const question = document.getElementById("questionInput").value;
+      const responseBox = document.getElementById("response");
+
+      responseBox.textContent = "Thinking...";
+
+      try {
+        const res = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question })
+        });
+
+        const data = await res.json();
+        responseBox.textContent = data.answer;
+      } catch (err) {
+        responseBox.textContent = "Something went wrong. Please try again.";
+      }
+    }
+  </script>
+</body>
+</html>
