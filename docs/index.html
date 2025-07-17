@@ -36,7 +36,7 @@
       responseBox.textContent = "Thinking...";
 
       try {
-        const res = await fetch("/api/ask", {
+        const res = await fetch("https://novust-api.onrender.com/api/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ question })
