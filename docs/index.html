@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>UK AI Tax Assistant - Ask Any Question</title>
+  <title>UK AI Tax Assistant</title>
   <style>
     body {
       font-family: sans-serif;
@@ -24,34 +24,81 @@
 </head>
 <body>
   <div style="text-align: center; margin-bottom: 20px;">
-  <img src="logo.png" alt="Novust Logo" style="width: 220px; max-width: 90%;" />
-  <p style="font-size: 1.2em; color: #444;">AI Tax and Bookkeeping Assistant</p>
+  <img src="logo.png" alt="Novust Logo" style="width: 264px; max-width: 90%;" />
+  <p style="font-size: 1.2em; color: #444;">Trained AI Model</p>
   </div>
-  <h2>Ask any question related to tax or accountancy and allow our AI respondent to advise</h2>
+  <h2></h2>
   <input id="questionInput" type="text" placeholder="e.g. How much tax will I pay on £30k income? / Tell me the income tax thresholds? etc." />
-  <button onclick="askQuestion()">Submit</button> 
-  <div id="response"></div>
+  <div style="text-align: center;">
+  <button onclick="askQuestion()" style="padding: 10px 20px; font-size: 1em; border: 1px solid #aaa; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; width: auto;">
+    Ask
+  </button>
+</div>
+
+  <div id="answer-box" style="display: none; position: relative; margin-top: 20px; min-height: 100px; padding-bottom: 40px;">
+  <p id="timer" style="font-size: 0.9em; color: #555; margin-top: 5px;"></p>
+    <div id="response" style="padding: 10px; border: 1px solid #ccc; border-radius: 6px; background-color: #f9f9f9;"></div>
+  <button onclick="copyAnswer()" style="position: absolute; bottom: 10px; right: 10px; font-size: 0.8em; padding: 6px 10px; cursor: pointer; border: 1px solid #888; background-color: #eee; border-radius: 4px; width: auto; display: inline-block;">
+    📋 Copy
+  </button>
+</div>
+
+
 
   <script>
-    async function askQuestion() {
-      const question = document.getElementById("questionInput").value;
-      const responseBox = document.getElementById("response");
+   let responseTimes = [];
+let timerInterval;
 
-      responseBox.textContent = "Analysing your question...";
+async function askQuestion() {
+  const question = document.getElementById("questionInput").value;
+  const responseBox = document.getElementById("response");
+  const timerText = document.getElementById("timer");
 
-      try {
-        const res = await fetch("https://novust-api.onrender.com/api/ask", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question })
-        });
+  responseBox.textContent = "Analysing your question...";
+  document.getElementById("answer-box").style.display = "block";
 
-        const data = await res.json();
-        responseBox.textContent = data.answer;
-      } catch (err) {
-        responseBox.textContent = "Apologies our AI assistant appears to be down. Please try again and if the problem persits try again in an hour.";
-      }
-    }
+  let start = Date.now();
+  let elapsed = 0;
+
+  // Start live timer
+  timerText.textContent = "⏱️ Response time: 0.00s";
+  timerInterval = setInterval(() => {
+    elapsed = ((Date.now() - start) / 1000).toFixed(2);
+    timerText.textContent = `⏱️ Response time: ${elapsed}s`;
+  }, 100);
+
+  try {
+    const res = await fetch("https://novust-api.onrender.com/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question })
+    });
+
+    const data = await res.json();
+    clearInterval(timerInterval); // stop timer
+
+    const totalTime = parseFloat(elapsed);
+    responseTimes.push(totalTime);
+    const average =
+      responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length;
+
+    responseBox.textContent = data.answer;
+    timerText.textContent = `⏱️ Response time: ${totalTime}s — Average today: ${average.toFixed(2)}s`;
+  } catch (err) {
+    clearInterval(timerInterval);
+    responseBox.textContent =
+      "Apologies our AI assistant appears to be down. Please try again and if the problem persists try again in an hour.";
+  }
+}
+
+
+    function copyAnswer() {
+    const answerText = document.getElementById("response").textContent;
+    navigator.clipboard.writeText(answerText).then(() => {
+    alert("Answer copied to clipboard!");
+    });
+}
+
   </script>
 </body>
 </html>
