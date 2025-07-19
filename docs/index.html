@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Ask a Tax Question</title>
+  <title>UK AI Tax Assistant - Ask Any Question</title>
   <style>
     body {
       font-family: sans-serif;
@@ -23,9 +23,13 @@
   </style>
 </head>
 <body>
-  <h2>Ask your UK tax question</h2>
-  <input id="questionInput" type="text" placeholder="e.g. How much tax will I pay on £30k income?" />
-  <button onclick="askQuestion()">Submit</button>
+  <div style="text-align: center; margin-bottom: 20px;">
+  <img src="logo.png" alt="Novust Logo" style="width: 220px; max-width: 90%;" />
+  <p style="font-size: 1.2em; color: #444;">AI Tax and Bookkeeping Assistant</p>
+  </div>
+  <h2>Ask any question related to tax or accountancy and allow our AI respondent to advise</h2>
+  <input id="questionInput" type="text" placeholder="e.g. How much tax will I pay on £30k income? / Tell me the income tax thresholds? etc." />
+  <button onclick="askQuestion()">Submit</button> 
   <div id="response"></div>
 
   <script>
@@ -33,7 +37,7 @@
       const question = document.getElementById("questionInput").value;
       const responseBox = document.getElementById("response");
 
-      responseBox.textContent = "Thinking...";
+      responseBox.textContent = "Analysing your question...";
 
       try {
         const res = await fetch("https://novust-api.onrender.com/api/ask", {
@@ -45,7 +49,7 @@
         const data = await res.json();
         responseBox.textContent = data.answer;
       } catch (err) {
-        responseBox.textContent = "Something went wrong. Please try again.";
+        responseBox.textContent = "Apologies our AI assistant appears to be down. Please try again and if the problem persits try again in an hour.";
       }
     }
   </script>
