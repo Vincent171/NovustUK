@@ -9,23 +9,9 @@ body {
   color: #333;
 }
 
-.header {
-  text-align: center;
-}
-
-.logo-crop {
-  height: 200px;
-  object-fit: cover;
-  object-position: center;
-  display: block;
-  margin: 0 auto;
-  border-radius: 8px;
-}
-
-.subtext {
-  margin-top: 10px;
-  font-size: 1em;
-  color: #555;
+h2 {
+  font-weight: 500;
+  color: #444;
 }
 
 textarea {
@@ -60,6 +46,7 @@ button:hover {
   display: none;
   position: relative;
   margin-top: 20px;
+  min-height: 140px;
   padding-bottom: 40px;
 }
 
@@ -67,34 +54,23 @@ button:hover {
   width: 100%;
   position: relative;
   padding: 12px;
+  margin-bottom: 0;
   border: 1px solid #ccc;
   border-radius: 8px;
   background-color: #ffffff;
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
   white-space: pre-wrap;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
 }
 
 #answer-text {
   opacity: 0;
   transition: opacity 0.4s ease;
   white-space: pre-wrap;
-  text-align: left;
-  vertical-align: top;
-  padding-bottom: 40px; /* creates space for the copy button */
+  min-height: 70px; /* Ensures text starts at top */
 }
-
 
 #answer-text.show {
   opacity: 1;
-}
-
-#timer {
-  font-size: 0.9em;
-  color: #555;
-  margin-top: 8px;
 }
 
 .copy-btn {
@@ -107,6 +83,25 @@ button:hover {
   border: 1px solid #888;
   background-color: #eee;
   border-radius: 4px;
+}
+
+#timer {
+  font-size: 0.9em;
+  color: #555;
+  margin-top: 8px;
+}
+
+.logo-crop {
+  height: 200px;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  margin: 0 auto;
+  border-radius: 8px;
+}
+
+.header {
+  text-align: center;
 }
 
 #overlay {
@@ -137,4 +132,45 @@ button:hover {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* ✅ Mobile responsive tweaks */
+@media screen and (max-width: 600px) {
+  body {
+    padding: 10px;
+    margin: 20px auto;
+    max-width: 100%;
+  }
+
+  .logo-crop {
+    height: auto;
+    width: 90%;
+  }
+
+  textarea {
+    font-size: 1em;
+    padding: 10px;
+  }
+
+  button {
+    width: 100%;
+    font-size: 1em;
+  }
+
+  #response {
+    font-size: 1em;
+    padding: 10px;
+  }
+
+  .copy-btn {
+    bottom: 6px;
+    right: 6px;
+    font-size: 0.75em;
+    padding: 5px 8px;
+  }
+
+  #timer {
+    font-size: 0.85em;
+    text-align: center;
+  }
 }
