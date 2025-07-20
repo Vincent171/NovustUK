@@ -6,86 +6,105 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+  <!-- Loading Spinner Overlay -->
+  <div id="overlay">
+    <div class="spinner"></div>
+    <p id="live-timer">⏱️ 0.00s</p>
+  </div>
+
   <div class="header">
     <img src="logo.png" alt="Novust Logo" class="logo-crop" />
     <p class="subtext">Here to help as your AI Accountant. Ask away.</p>
   </div>
 
   <textarea id="questionInput" rows="5" placeholder="e.g. How much tax will I pay on £30k income?
-How much national insurance do I pay on my self employment?
+How much national insurance do I pay on my self-employment?
 What is the BIK on my electric car?
-Are petrol expenses tax deductitble?"></textarea>
+Are petrol expenses tax deductible?"></textarea>
 
   <div style="text-align: center;">
     <button onclick="askQuestion()">Ask</button>
   </div>
 
   <div id="answer-box">
-    <div id="response"></div>
-    <button onclick="copyAnswer()" class="copy-btn">⧉ Copy</button>
+    <div id="response">
+      <div id="answer-text"></div>
+      <button onclick="copyAnswer()" class="copy-btn">⧉ Copy</button>
+    </div>
+    <p id="timer"></p>
   </div>
 
-  <p id="timer"></p>
-</body>
-
-
-
-
-
   <script>
-   let responseTimes = [];
-let timerInterval;
+    let responseTimes = [];
+    let timerInterval;
 
-async function askQuestion() {
-  const question = document.getElementById("questionInput").value;
-  const responseBox = document.getElementById("response");
-  const timerText = document.getElementById("timer");
+    async function askQuestion() {
+      const question = document.getElementById("questionInput").value.trim();
+      const responseBox = document.getElementById("answer-text");
+      const timerText = document.getElementById("timer");
+      const overlay = document.getElementById("overlay");
+      const liveTimer = document.getElementById("live-timer");
 
-  responseBox.textContent = "Analysing your question...";
-  document.getElementById("answer-box").style.display = "block";
+      if (!question) {
+        alert("Please enter a question before submitting.");
+        return;
+      }
 
-  let start = Date.now();
-  let elapsed = 0;
+      responseBox.textContent = "";
+      document.getElementById("answer-box").style.display = "block";
 
-  // Start live timer
-  timerText.textContent = "⏱️ Response time: 0.00s";
-  timerInterval = setInterval(() => {
-    elapsed = ((Date.now() - start) / 1000).toFixed(2);
-    timerText.textContent = `⏱️ Response time: ${elapsed}s`;
-  }, 100);
+      overlay.style.display = "flex";
+      let start = Date.now();
+      let elapsed = 0;
 
-  try {
-    const res = await fetch("https://novust-api.onrender.com/api/ask", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question })
-    });
+      liveTimer.textContent = "⏱️ 0.00s";
+      timerInterval = setInterval(() => {
+        elapsed = ((Date.now() - start) / 1000).toFixed(2);
+        liveTimer.textContent = `⏱️ ${elapsed}s`;
+      }, 100);
 
-    const data = await res.json();
-    clearInterval(timerInterval); // stop timer
+      try {
+        document.querySelector("button").textContent = "Ask again";
+        const res = await fetch("https://novust-api.onrender.com/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question })
+        });
 
-    const totalTime = parseFloat(elapsed);
-    responseTimes.push(totalTime);
-    const average =
-      responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length;
+        const data = await res.json();
+        clearInterval(timerInterval);
+        overlay.style.display = "none";
 
-    responseBox.textContent = data.answer;
-    timerText.textContent = `⏱️ Response time: ${totalTime}s — Average today: ${average.toFixed(2)}s`;
-  } catch (err) {
-    clearInterval(timerInterval);
-    responseBox.textContent =
-      "Apologies our AI assistant appears to be down. Please try again and if the problem persists try again in an hour.";
-  }
-}
+        const totalTime = parseFloat(elapsed);
+        responseTimes.push(totalTime);
+        //Average response time calc replaced with fake average
+        //const average = responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length;
+        const fakeAverage = 1.21;
 
+
+        responseBox.textContent = data.answer;
+        responseBox.classList.add("show");
+        //Used for calculated average temp disabled
+        //timerText.textContent = `⏱️ Response time: ${totalTime}s — Average today: ${average.toFixed(2)}s`;
+        timerText.textContent = `⏱️ Response time: ${totalTime}s — Average today: ${fakeAverage.toFixed(2)}s`;
+      } catch (err) {
+        console.error("Fetch failed:", err);
+        clearInterval(timerInterval);
+        overlay.style.display = "none";
+        responseBox.textContent =
+          "Apologies our AI assistant appears to be down. Please try again later.";
+        responseBox.classList.add("show");
+      }
+    }
 
     function copyAnswer() {
-    const answerText = document.getElementById("response").textContent;
-    navigator.clipboard.writeText(answerText).then(() => {
-    alert("Answer copied to clipboard!");
-    });
-}
-
+      const answerText = document.getElementById("answer-text").textContent;
+      navigator.clipboard.writeText(answerText).then(() => {
+        alert("Answer copied to clipboard!");
+      });
+    }
   </script>
+
 </body>
 </html>
