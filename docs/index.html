@@ -3,45 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <title>UK AI Tax Assistant</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      max-width: 600px;
-      margin: 50px auto;
-      padding: 20px;
-    }
-    input, button {
-      width: 100%;
-      padding: 10px;
-      margin-top: 10px;
-      font-size: 1em;
-    }
-    #response {
-      margin-top: 20px;
-      white-space: pre-wrap;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div style="text-align: center; margin-bottom: 20px;">
-  <img src="logo.png" alt="Novust Logo" style="width: 264px; max-width: 90%;" />
-  <p style="font-size: 1.2em; color: #444;">Trained AI Model</p>
+  <div class="header">
+    <img src="logo.png" alt="Novust Logo" class="logo-crop" />
+    <p class="subtext">Here to help as your AI Accountant. Ask away.</p>
   </div>
-  <h2></h2>
-  <input id="questionInput" type="text" placeholder="e.g. How much tax will I pay on £30k income? / Tell me the income tax thresholds? etc." />
-  <div style="text-align: center;">
-  <button onclick="askQuestion()" style="padding: 10px 20px; font-size: 1em; border: 1px solid #aaa; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; width: auto;">
-    Ask
-  </button>
-</div>
 
-  <div id="answer-box" style="display: none; position: relative; margin-top: 20px; min-height: 100px; padding-bottom: 40px;">
-  <p id="timer" style="font-size: 0.9em; color: #555; margin-top: 5px;"></p>
-    <div id="response" style="padding: 10px; border: 1px solid #ccc; border-radius: 6px; background-color: #f9f9f9;"></div>
-  <button onclick="copyAnswer()" style="position: absolute; bottom: 10px; right: 10px; font-size: 0.8em; padding: 6px 10px; cursor: pointer; border: 1px solid #888; background-color: #eee; border-radius: 4px; width: auto; display: inline-block;">
-    📋 Copy
-  </button>
-</div>
+  <textarea id="questionInput" rows="5" placeholder="e.g. How much tax will I pay on £30k income?
+How much national insurance do I pay on my self employment?
+What is the BIK on my electric car?
+Are petrol expenses tax deductitble?"></textarea>
+
+  <div style="text-align: center;">
+    <button onclick="askQuestion()">Ask</button>
+  </div>
+
+  <div id="answer-box">
+    <div id="response"></div>
+    <button onclick="copyAnswer()" class="copy-btn">⧉ Copy</button>
+  </div>
+
+  <p id="timer"></p>
+</body>
+
+
 
 
 
