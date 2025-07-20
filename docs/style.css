@@ -1,0 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter&display=swap');
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #f4f8fc; /* Soft neutral blue */
+  max-width: 650px;
+  margin: 50px auto;
+  padding: 20px;
+  color: #333;
+}
+
+h2 {
+  font-weight: 500;
+  color: #444;
+}
+
+input[type="text"] {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  font-size: 1em;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+}
+
+button {
+  margin-top: 15px;
+  padding: 10px 20px;
+  font-size: 1em;
+  cursor: pointer;
+  background-color: #2196f3; /* Friendly blue */
+  color: white;
+  border: none;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+button:hover {
+  background-color: #1976d2;
+}
+
+#answer-box {
+  display: none;
+  position: relative;
+  margin-top: 20px;
+  min-height: 100px;
+  padding-bottom: 40px;
+}
+
+#response {
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background-color: #ffffff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  white-space: pre-wrap;
+}
+
+#timer {
+  font-size: 0.9em;
+  color: #555;
+  margin-top: 8px;
+}
+
+.copy-btn {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  font-size: 0.8em;
+  padding: 6px 10px;
+  cursor: pointer;
+  border: 1px solid #888;
+  background-color: #eee;
+  border-radius: 4px;
+  width: auto;
+  display: inline-block;
+}
+
+.logo-crop {
+  height: 200px; /* Adjust as needed */
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  margin: 0 auto;
+  border-radius: 8px; /* optional for smooth edges */
+}
+
+
+.header {
+  text-align: center;
+}
+
+textarea {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  font-size: 1em;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  resize: vertical; /* allows user to drag height */
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+  line-height: 1.4;
+}
+
