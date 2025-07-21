@@ -83,8 +83,9 @@ Are petrol expenses tax deductible?"></textarea>
         //const average = responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length;
         const fakeAverage = 1.21;
 
-
+        //line below is for live API
         responseBox.textContent = data.answer;
+        //responseBox.textContent = "This is a sample AI answer for testing purposes. API is disabled by host."; //line is for static response
         responseBox.classList.add("show");
         //Used for calculated average temp disabled
         //timerText.textContent = `⏱️ Response time: ${totalTime}s — Average today: ${average.toFixed(2)}s`;
