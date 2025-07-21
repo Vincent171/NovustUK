@@ -208,3 +208,30 @@ button:hover {
     padding: 10px;
   }
 }
+
+
+
+/* Ensure text areas and response boxes have no visual overflow */
+textarea,
+#response {
+  box-sizing: border-box;
+}
+
+/* Fix copy button size and alignment for mobile */
+@media (max-width: 600px) {
+  textarea,
+  #response {
+    width: 100%;
+  }
+
+  .copy-btn {
+    position: relative;
+    display: inline-block;
+    float: right;
+    margin-top: 8px;
+    bottom: auto;
+    right: auto;
+    font-size: 0.75em;
+    padding: 4px 8px;
+  }
+}
