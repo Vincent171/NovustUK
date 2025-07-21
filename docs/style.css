@@ -1,23 +1,22 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter&display=swap');
 
-/* Prevent mobile horizontal scroll */
 html, body {
-  max-width: 100%;
+  margin: 0;
+  padding: 0;
   overflow-x: hidden;
 }
 
 body {
   font-family: "Inter", "Helvetica Neue", sans-serif;
   background-color: #f8fbfe;
-  max-width: 650px;
-  margin: 50px auto;
-  padding: 20px;
   color: #333;
 }
 
-h2 {
-  font-weight: 500;
-  color: #444;
+.container {
+  max-width: 650px;
+  margin: 50px auto;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .header {
@@ -32,14 +31,12 @@ h2 {
   margin: 0 auto;
   border-radius: 8px;
 }
-/*temp comment*/
 
 .subtext {
   margin-top: 10px;
   font-size: 1em;
   color: #555;
 }
-
 
 textarea {
   width: 100%;
@@ -51,6 +48,7 @@ textarea {
   resize: vertical;
   box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
   line-height: 1.4;
+  box-sizing: border-box;
 }
 
 button {
@@ -87,13 +85,14 @@ button:hover {
   background-color: #ffffff;
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
   white-space: pre-wrap;
+  box-sizing: border-box;
 }
 
 #answer-text {
   opacity: 0;
   transition: opacity 0.4s ease;
   white-space: pre-wrap;
-  min-height: 70px; /* Ensures text starts at top */
+  min-height: 70px;
 }
 
 #answer-text.show {
@@ -116,19 +115,6 @@ button:hover {
   font-size: 0.9em;
   color: #555;
   margin-top: 8px;
-}
-
-.logo-crop {
-  height: 200px;
-  object-fit: cover;
-  object-position: center;
-  display: block;
-  margin: 0 auto;
-  border-radius: 8px;
-}
-
-.header {
-  text-align: center;
 }
 
 #overlay {
@@ -161,17 +147,16 @@ button:hover {
   100% { transform: rotate(360deg); }
 }
 
-/* ✅ Mobile responsive tweaks */
+/* ✅ Mobile Responsive */
 @media screen and (max-width: 600px) {
-  body {
-    padding: 10px;
+  .container {
     margin: 20px auto;
-    max-width: 100%;
+    padding: 12px;
   }
 
   .logo-crop {
+    width: 100%;
     height: auto;
-    width: 90%;
   }
 
   textarea {
@@ -190,48 +175,17 @@ button:hover {
   }
 
   .copy-btn {
-    bottom: 6px;
-    right: 6px;
+    position: relative;
+    float: right;
+    margin-top: 10px;
+    bottom: auto;
+    right: auto;
     font-size: 0.75em;
-    padding: 5px 8px;
+    padding: 4px 8px;
   }
 
   #timer {
     font-size: 0.85em;
     text-align: center;
-  }
-}
-
-/* For mobile width */
-@media (max-width: 700px) {
-  body {
-    padding: 10px;
-  }
-}
-
-
-
-/* Ensure text areas and response boxes have no visual overflow */
-textarea,
-#response {
-  box-sizing: border-box;
-}
-
-/* Fix copy button size and alignment for mobile */
-@media (max-width: 600px) {
-  textarea,
-  #response {
-    width: 100%;
-  }
-
-  .copy-btn {
-    position: relative;
-    display: inline-block;
-    float: right;
-    margin-top: 8px;
-    bottom: auto;
-    right: auto;
-    font-size: 0.75em;
-    padding: 4px 8px;
   }
 }
