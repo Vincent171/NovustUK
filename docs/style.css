@@ -20,6 +20,27 @@ h2 {
   color: #444;
 }
 
+.header {
+  text-align: center;
+}
+
+.logo-crop {
+  height: 200px;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  margin: 0 auto;
+  border-radius: 8px;
+}
+/*temp comment*/
+
+.subtext {
+  margin-top: 10px;
+  font-size: 1em;
+  color: #555;
+}
+
+
 textarea {
   width: 100%;
   padding: 12px;
