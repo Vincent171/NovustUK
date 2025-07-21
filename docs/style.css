@@ -1,12 +1,22 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter&display=swap');
 
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
 body {
   font-family: "Inter", "Helvetica Neue", sans-serif;
   background-color: #f8fbfe;
+  color: #333;
+}
+
+.container {
   max-width: 650px;
   margin: 50px auto;
   padding: 20px;
-  color: #333;
+  box-sizing: border-box;
 }
 
 .header {
@@ -21,7 +31,6 @@ body {
   margin: 0 auto;
   border-radius: 8px;
 }
-/*temp comment*/
 
 .subtext {
   margin-top: 10px;
@@ -39,6 +48,7 @@ textarea {
   resize: vertical;
   box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
   line-height: 1.4;
+  box-sizing: border-box;
 }
 
 button {
@@ -61,42 +71,41 @@ button:hover {
   display: none;
   position: relative;
   margin-top: 20px;
+  min-height: 140px;
   padding-bottom: 40px;
 }
 
 #response {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
   width: 100%;
   position: relative;
   padding: 12px;
+  margin-bottom: 0;
   border: 1px solid #ccc;
   border-radius: 8px;
   background-color: #ffffff;
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
   white-space: pre-wrap;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  box-sizing: border-box;
+  padding-bottom: 48px; /* ⬅️ Makes space for the absolute copy button */
 }
+
 
 #answer-text {
   opacity: 0;
   transition: opacity 0.4s ease;
   white-space: pre-wrap;
-  text-align: left;
-  vertical-align: top;
-  padding-bottom: 40px; /* creates space for the copy button */
+  margin: 0;
+  padding: 0;
 }
 
 
 #answer-text.show {
   opacity: 1;
-}
-
-#timer {
-  font-size: 0.9em;
-  color: #555;
-  margin-top: 8px;
-}
+}s
 
 .copy-btn {
   position: absolute;
@@ -105,9 +114,25 @@ button:hover {
   font-size: 0.8em;
   padding: 6px 12px;
   cursor: pointer;
-  border: 1px solid #888;
-  background-color: #eee;
+  background-color: #2196f3; /* Blue initially */
+  color: white;
+  border: none;
   border-radius: 4px;
+  transition: background-color 0.3s ease;
+}
+
+.copy-btn.clicked {
+  background-color: #ccc;  /* Grey after click */
+  color: #333;
+  cursor: default;
+}
+
+
+
+#timer {
+  font-size: 0.9em;
+  color: #555;
+  margin-top: 8px;
 }
 
 #overlay {
@@ -139,3 +164,52 @@ button:hover {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* ✅ Mobile Responsive */
+@media screen and (max-width: 600px) {
+  .container {
+    margin: 20px auto;
+    padding: 12px;
+  }
+
+  .logo-crop {
+    width: 100%;
+    height: auto;
+  }
+
+  textarea {
+    font-size: 1em;
+    padding: 10px;
+  }
+
+  button {
+    width: 100%;
+    font-size: 1em;
+  }
+
+  #response {
+    font-size: 1em;
+    padding: 12px;
+    padding-bottom: 60px; /* space for copy button */
+  }
+
+  .copy-btn {
+    position: relative;
+    float: right;
+    display: inline-block;
+    margin-top: 10px;
+    bottom: auto;
+    right: auto;
+    font-size: 0.75em;
+    padding: 4px 10px;
+    max-width: 120px;
+    white-space: nowrap;
+  }
+
+  #timer {
+    font-size: 0.85em;
+    text-align: center;
+  }
+}
+
+
