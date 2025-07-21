@@ -67,6 +67,7 @@ Are petrol expenses tax deductible?"></textarea>
 
       try {
         document.querySelector("button").textContent = "Ask again";
+        /*API FETCH DISABLED
         const res = await fetch("https://novust-api.onrender.com/api/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -74,6 +75,7 @@ Are petrol expenses tax deductible?"></textarea>
         });
 
         const data = await res.json();
+        */
         clearInterval(timerInterval);
         overlay.style.display = "none";
 
@@ -84,8 +86,8 @@ Are petrol expenses tax deductible?"></textarea>
         const fakeAverage = 1.21;
 
         //line below is for live API
-        responseBox.textContent = data.answer;
-        //responseBox.textContent = "This is a sample AI answer for testing purposes. API is disabled by host."; //line is for static response
+        //responseBox.textContent = data.answer;
+        responseBox.textContent = "This is a sample AI answer for testing purposes. API is disabled by host."; //line is for static response
         responseBox.classList.add("show");
         //Used for calculated average temp disabled
         //timerText.textContent = `⏱️ Response time: ${totalTime}s — Average today: ${average.toFixed(2)}s`;
