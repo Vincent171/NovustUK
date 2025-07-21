@@ -174,14 +174,17 @@ button:hover {
     padding: 10px;
   }
 
-  .copy-btn {
-    position: relative;
-    float: right;
-    margin-top: 10px;
-    bottom: auto;
-    right: auto;
-    font-size: 0.75em;
-    padding: 4px 8px;
+.copy-btn {
+  position: relative;
+  float: right;
+  display: inline-block;
+  margin-top: 10px;
+  bottom: auto;
+  right: auto;
+  font-size: 0.75em;
+  padding: 4px 10px;
+  max-width: 120px;   /* ✅ prevents full width */
+  white-space: nowrap;
   }
 
   #timer {
