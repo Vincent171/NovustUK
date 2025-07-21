@@ -25,7 +25,7 @@ What is the BIK on my electric car?
 Are petrol expenses tax deductible?"></textarea>
 
   <div style="text-align: center;">
-    <button onclick="askQuestion()">Ask</button>
+    <button id="askBtn" onclick="askQuestion()">Ask</button>
   </div>
 
   <div id="answer-box">
@@ -36,77 +36,166 @@ Are petrol expenses tax deductible?"></textarea>
     <p id="timer"></p>
   </div>
 
+  
   <script>
+    /*BELOW IS ACTUAL API LINK
     let responseTimes = [];
     let timerInterval;
 
-    async function askQuestion() {
-      const question = document.getElementById("questionInput").value.trim();
-      const responseBox = document.getElementById("answer-text");
-      const timerText = document.getElementById("timer");
-      const overlay = document.getElementById("overlay");
-      const liveTimer = document.getElementById("live-timer");
+async function askQuestion() {
+  const askBtn = document.getElementById("askBtn");
+  askBtn.textContent = "Ask again";  // ✅ Changes label after first use
+  
+  const question = document.getElementById("questionInput").value;
+  const responseBox = document.getElementById("answer-text");
+  const timerText = document.getElementById("timer");
+  const overlay = document.getElementById("overlay");
+  const liveTimer = document.getElementById("live-timer");
 
-      if (!question) {
-        alert("Please enter a question before submitting.");
-        return;
-      }
+  
+  if (!question.trim()) {
+    alert("Please enter a question first.");
+    return;
+  }
 
-      responseBox.textContent = "";
-      document.getElementById("answer-box").style.display = "block";
+  responseBox.textContent = "";
+  document.getElementById("answer-box").style.display = "block";
+  overlay.style.display = "flex";
 
-      overlay.style.display = "flex";
-      let start = Date.now();
-      let elapsed = 0;
+  let start = Date.now();
+  let elapsed = 0;
+  let timeoutTriggered = false;
 
-      liveTimer.textContent = "⏱️ 0.00s";
-      timerInterval = setInterval(() => {
-        elapsed = ((Date.now() - start) / 1000).toFixed(2);
-        liveTimer.textContent = `⏱️ ${elapsed}s`;
-      }, 100);
+  timerText.textContent = "";
+  liveTimer.textContent = "⏱️ 0.00s";
 
-      try {
-        document.querySelector("button").textContent = "Ask again";
-        const res = await fetch("https://novust-api.onrender.com/api/ask", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question })
-        });
+  timerInterval = setInterval(() => {
+    elapsed = ((Date.now() - start) / 1000).toFixed(2);
+    liveTimer.textContent = `⏱️ ${elapsed}s`;
 
-        const data = await res.json();
-        clearInterval(timerInterval);
-        overlay.style.display = "none";
-
-        const totalTime = parseFloat(elapsed);
-        responseTimes.push(totalTime);
-        //Average response time calc replaced with fake average
-        //const average = responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length;
-        const fakeAverage = 1.21;
-
-        //line below is for live API
-        responseBox.textContent = data.answer;
-        //responseBox.textContent = "This is a sample AI answer for testing purposes. API is disabled by host."; //line is for static response
-        responseBox.classList.add("show");
-        //Used for calculated average temp disabled
-        //timerText.textContent = `⏱️ Response time: ${totalTime}s — Average today: ${average.toFixed(2)}s`;
-        timerText.textContent = `⏱️ Response time: ${totalTime}s — Average today: ${fakeAverage.toFixed(2)}s`;
-      } catch (err) {
-        console.error("Fetch failed:", err);
-        clearInterval(timerInterval);
-        overlay.style.display = "none";
-        responseBox.textContent =
-          "Apologies our AI assistant appears to be down. Please try again later.";
-        responseBox.classList.add("show");
-      }
+    if (elapsed >= 15 && !timeoutTriggered) {
+      timeoutTriggered = true;
+      clearInterval(timerInterval);
+      overlay.style.display = "none";
+      responseBox.textContent = "We experienced an unexpected error. Please try rewording your question or trying again.";
     }
+  }, 100);
 
-    function copyAnswer() {
-      const answerText = document.getElementById("answer-text").textContent;
-      navigator.clipboard.writeText(answerText).then(() => {
-        alert("Answer copied to clipboard!");
-      });
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
+    const res = await fetch("https://novust-api.onrender.com/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeout);
+    clearInterval(timerInterval);
+    overlay.style.display = "none";
+
+    if (!timeoutTriggered) {
+      const data = await res.json();
+      responseBox.textContent = data.answer;
+      responseBox.classList.add("show");
+      timerText.textContent = `⏱️ Response time: ${elapsed}s — Average today: 1.21s`;
     }
-  </script>
+  } catch (err) {
+    if (!timeoutTriggered) {
+      clearInterval(timerInterval);
+      overlay.style.display = "none";
+      responseBox.textContent = "Apologies, our assistant ran into a problem. Please try again shortly.";
+    }
+  }
+}
+
+
+function copyAnswer() {
+  const btn = document.querySelector(".copy-btn");
+  const answerText = document.getElementById("answer-text").textContent;
+  navigator.clipboard.writeText(answerText).then(() => {
+    btn.classList.add("clicked");
+    btn.textContent = "Copied!";
+    setTimeout(() => {
+      btn.classList.remove("clicked");
+      btn.textContent = "⧉ Copy";
+    }, 2000);
+  });
+}
+*/
+
+/*BELOW IS API DEACTIVATED*/
+
+
+let responseTimes = [];
+let timerInterval;
+
+async function askQuestion() {
+  const question = document.getElementById("questionInput").value.trim();
+  const responseBox = document.getElementById("answer-text");
+  const timerText = document.getElementById("timer");
+  const overlay = document.getElementById("overlay");
+  const liveTimer = document.getElementById("live-timer");
+  const askButton = document.querySelector("button");
+
+  if (!question) {
+    alert("Please enter a question.");
+    return;
+  }
+
+  responseBox.textContent = "";
+  document.getElementById("answer-box").style.display = "block";
+
+  overlay.style.display = "flex";
+  let start = Date.now();
+  let elapsed = 0;
+
+  liveTimer.textContent = "⏱️ 0.00s";
+  timerInterval = setInterval(() => {
+    elapsed = ((Date.now() - start) / 1000).toFixed(2);
+    liveTimer.textContent = `⏱️ ${elapsed}s`;
+  }, 100);
+
+  // --- Simulate 16s delay (longer than timeout)
+  const fakeApiCall = () => new Promise(resolve =>
+    setTimeout(() => resolve({ answer: "API deactivated by host. Please try again later." }), 16000)
+  );
+
+  // --- Timeout after 15s
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("timeout")), 15000)
+  );
+
+  try {
+    const result = await Promise.race([fakeApiCall(), timeout]);
+
+    clearInterval(timerInterval);
+    overlay.style.display = "none";
+
+    const totalTime = parseFloat(elapsed);
+    responseTimes.push(totalTime);
+    const average = 1.21; // fixed value for now
+
+    responseBox.textContent = result.answer;
+    responseBox.classList.add("show");
+    timerText.textContent = `⏱️ Response time: ${totalTime}s — Average today: ${average}s`;
+
+    askButton.textContent = "Ask again";
+
+  } catch (err) {
+    clearInterval(timerInterval);
+    overlay.style.display = "none";
+
+    responseBox.textContent = "We experienced an unexpected error. Please try rewording your question or trying again.";
+    responseBox.classList.add("show");
+
+    timerText.textContent = "⏱️ Timed out at 15s";
+  }
+}
+</script>
+
   </div>
 </body>
 </html>

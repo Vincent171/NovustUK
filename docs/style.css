@@ -76,6 +76,10 @@ button:hover {
 }
 
 #response {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
   width: 100%;
   position: relative;
   padding: 12px;
@@ -86,14 +90,18 @@ button:hover {
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
   white-space: pre-wrap;
   box-sizing: border-box;
+  padding-bottom: 48px; /* ⬅️ Makes space for the absolute copy button */
 }
+
 
 #answer-text {
   opacity: 0;
   transition: opacity 0.4s ease;
   white-space: pre-wrap;
-  min-height: 70px;
+  margin: 0;
+  padding: 0;
 }
+
 
 #answer-text.show {
   opacity: 1;
@@ -106,10 +114,20 @@ button:hover {
   font-size: 0.8em;
   padding: 6px 12px;
   cursor: pointer;
-  border: 1px solid #888;
-  background-color: #eee;
+  background-color: #2196f3; /* Blue initially */
+  color: white;
+  border: none;
   border-radius: 4px;
+  transition: background-color 0.3s ease;
 }
+
+.copy-btn.clicked {
+  background-color: #ccc;  /* Grey after click */
+  color: #333;
+  cursor: default;
+}
+
+
 
 #timer {
   font-size: 0.9em;
@@ -171,20 +189,21 @@ button:hover {
 
   #response {
     font-size: 1em;
-    padding: 10px;
+    padding: 12px;
+    padding-bottom: 60px; /* space for copy button */
   }
 
-.copy-btn {
-  position: relative;
-  float: right;
-  display: inline-block;
-  margin-top: 10px;
-  bottom: auto;
-  right: auto;
-  font-size: 0.75em;
-  padding: 4px 10px;
-  max-width: 120px;   /* ✅ prevents full width */
-  white-space: nowrap;
+  .copy-btn {
+    position: relative;
+    float: right;
+    display: inline-block;
+    margin-top: 10px;
+    bottom: auto;
+    right: auto;
+    font-size: 0.75em;
+    padding: 4px 10px;
+    max-width: 120px;
+    white-space: nowrap;
   }
 
   #timer {
@@ -192,3 +211,5 @@ button:hover {
     text-align: center;
   }
 }
+
+
