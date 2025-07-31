@@ -4,12 +4,16 @@ html, body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
+  font-family: "Inter", "Helvetica Neue", sans-serif;
 }
 
 body {
-  font-family: "Inter", "Helvetica Neue", sans-serif;
   background-color: #f8fbfe;
   color: #333;
+}
+
+.hidden {
+  display: none !important;
 }
 
 .container {
@@ -32,6 +36,16 @@ body {
   border-radius: 8px;
 }
 
+.logo-crop.pulse {
+  animation: logo-pulse 0.6s ease-in-out;
+}
+
+@keyframes logo-pulse {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
 .subtext {
   margin-top: 10px;
   font-size: 1em;
@@ -49,6 +63,7 @@ textarea {
   box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
   line-height: 1.4;
   box-sizing: border-box;
+  font-family: "Inter", "Helvetica Neue", sans-serif;
 }
 
 button {
@@ -78,28 +93,27 @@ button:hover {
 #response {
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
   align-items: stretch;
-  width: 100%;
-  position: relative;
+  justify-content: flex-start;
   padding: 12px;
-  margin-bottom: 0;
+  padding-bottom: 60px; /* ✅ extra space for copy button */
   border: 1px solid #ccc;
   border-radius: 8px;
-  background-color: #ffffff;
+  background-color: #fff;
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-  white-space: pre-wrap;
   box-sizing: border-box;
-  padding-bottom: 48px; /* ⬅️ Makes space for the absolute copy button */
+  position: relative;
 }
 
 
 #answer-text {
+  margin: 0;
+  padding: 0;
   opacity: 0;
   transition: opacity 0.4s ease;
   white-space: pre-wrap;
-  margin: 0;
-  padding: 0;
+  line-height: 1.4;
+  min-height: 1em; /* Ensure it starts from top */
 }
 
 
@@ -114,20 +128,17 @@ button:hover {
   font-size: 0.8em;
   padding: 6px 12px;
   cursor: pointer;
-  background-color: #2196f3; /* Blue initially */
+  background-color: #2196f3;
   color: white;
   border: none;
   border-radius: 4px;
-  transition: background-color 0.3s ease;
+  transition: all 0.3s ease;
 }
 
 .copy-btn.clicked {
-  background-color: #ccc;  /* Grey after click */
+  background-color: #ccc;
   color: #333;
-  cursor: default;
 }
-
-
 
 #timer {
   font-size: 0.9em;
@@ -165,7 +176,140 @@ button:hover {
   100% { transform: rotate(360deg); }
 }
 
-/* ✅ Mobile Responsive */
+.footer-links {
+  margin-top: 30px;
+  display: flex;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.footer-btn {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 0.8em;
+  cursor: pointer;
+  text-decoration: none;
+  padding: 0;
+}
+
+.footer-btn:hover {
+  background-color: inherit;
+  color: inherit;
+  cursor: default;
+  text-decoration: underline;
+}
+
+.legal-buttons {
+  position: fixed;
+  bottom: 10px;
+  left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 1000;
+}
+
+.legal-buttons button {
+  font-size: 0.75em;
+  padding: 4px 10px;
+  background-color: #eee;
+  color: #333;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.legal-buttons button:hover {
+  background-color: #ddd;
+}
+
+/* Modal styles */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(50, 50, 50, 0.5);
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+.modal-content {
+  background: #fff;
+  padding: 20px;
+  width: 90%;
+  max-width: 500px;
+  border-radius: 8px;
+  max-height: 80%;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.modal-text {
+  margin-top: 0;
+  font-size: 0.9em; /* or 14px or any preferred size */
+  line-height: 1.4;
+}
+
+
+
+.modal-close {
+  margin-top: 20px;
+  padding: 6px 12px;
+  font-size: 0.75em;
+  background-color: #ccc;
+  color: #333;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background-color: #bbb;
+}
+
+#signup-modal input {
+  width: 100%;
+  margin: 6px 0;
+  padding: 8px;
+  font-size: 1em;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+#signup-form button {
+  margin-top: 10px;
+  width: 100%;
+  padding: 10px;
+  font-size: 1em;
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 6px;
+}
+
+
+
+
+
+
+#login-status:hover {
+  background-color: #e6e6e6;
+}
+
+
+/* Show only when it has text 
+#login-status.visible {
+  display: inline-block;
+}*/
+
+
+
+
+/* ✅ Mobile Responsive Fixes -----------------------------------------------------------------------------------*/
 @media screen and (max-width: 600px) {
   .container {
     margin: 20px auto;
@@ -182,24 +326,18 @@ button:hover {
     padding: 10px;
   }
 
-  button {
-    width: 100%;
-    font-size: 1em;
-  }
+
 
   #response {
     font-size: 1em;
-    padding: 12px;
-    padding-bottom: 60px; /* space for copy button */
+    padding: 10px;
+    padding-bottom: 40px;
   }
 
   .copy-btn {
-    position: relative;
-    float: right;
-    display: inline-block;
-    margin-top: 10px;
-    bottom: auto;
-    right: auto;
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
     font-size: 0.75em;
     padding: 4px 10px;
     max-width: 120px;
@@ -210,6 +348,226 @@ button:hover {
     font-size: 0.85em;
     text-align: center;
   }
+
+  #auth-controls button {
+    width: auto;
+    font-size: 0.8rem;
+  }
+
+
+
+
+}
+
+/*ADDITIONS BELOW*/
+
+.login-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 40px;
+  max-width: 900px;
+  margin: 60px auto;
+  padding: 20px;
+  flex-wrap: wrap;
+}
+
+
+.login-form-container {
+  flex: 1;
+  min-width: 260px;
+}
+
+.login-form-container h2 {
+  margin-bottom: 20px;
+  font-size: 1.3rem;
+}
+
+
+
+
+.dropdown {
+  position: relative;
+}
+
+
+.switch-modal-text {
+  font-size: 0.85rem;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.switch-modal-text a {
+  color: #1d4ed8;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.footer-link {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
+
+.footer-link a {
+  color: gray;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.modal-content input,
+.modal-content button {
+  width: 100%;
+  padding: 8px;
+  margin: 5px 0;
+  font-size: 1rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  box-sizing: border-box; /* ✅ THIS FIXES THE RIGHT EDGE */
+}
+
+
+#login-modal .modal-content {
+  padding: 20px;
+}
+
+.modal-content button {
+  width: 100%;
+  padding: 10px;
+  font-size: 1rem;
+  border-radius: 6px;
+  background-color: #1d4ed8;
+  color: white;
+  border: none;
+  margin-top: 10px;
+}
+
+
+
+/*NEW RULES*/
+.auth-header {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 1000;
+}
+
+#login-status {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 14px;
+  font-size: 0.9rem;
+  background: #eef2ff;
+  color: #1e40af;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-sizing: border-box;
+  line-height: 40px; /* 🟢 Make text vertically centered */
+}
+
+
+.dropdown-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;               /* slightly reduced to align better */
+  margin-top: 2px;            /* shift it up to match login-status */
+  padding: 0 14px;
+  font-size: 0.9rem;
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+
+.dropdown-menu {
+  display: none;
+  flex-direction: column;
+  position: absolute;
+  top: 40px;
+  right: 0;
+  background-color: white;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  padding: 6px;
+  min-width: 140px;
+  z-index: 1001;
+}
+
+.dropdown-menu button {
+  background: none;
+  border: none;
+  color: #1d4ed8;
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border-radius: 4px;
+  white-space: nowrap;
+  transition: background 0.2s ease;
+}
+
+.dropdown-menu button:hover {
+  background-color: #f0f4ff;
+}
+
+
+.dropdown:hover .dropdown-menu {
+  display: flex;
+}
+
+#history-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 0.9rem;
+  border: 1px solid #dbeafe; /* light blue */
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+#history-table thead {
+  background-color: #eff6ff; /* pale blue header */
+}
+
+#history-table th, #history-table td {
+  border: 1px solid #dbeafe;
+  padding: 10px;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.4;
+}
+
+#history-table th {
+  font-weight: bold;
+  color: #1e3a8a;
+}
+
+#history-table td {
+  color: #333;
+}
+
+/* Optional: column widths */
+#history-table th:nth-child(1),
+#history-table td:nth-child(1) {
+  width: 40%; /* Question */
+}
+
+#history-table th:nth-child(2),
+#history-table td:nth-child(2) {
+  width: 40%; /* Answer */
+}
+
+#history-table th:nth-child(3),
+#history-table td:nth-child(3) {
+  width: 20%; /* Time */
 }
 
 

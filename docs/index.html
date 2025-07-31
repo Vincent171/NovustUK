@@ -1,31 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>UK AI Tax Assistant</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
+
+
+
 <body>
-  <div class="container">
-  <!-- Loading Spinner Overlay -->
+<div id="auth-header" class="auth-header">
+  <span id="login-status" class="hidden"></span>
+
+  <button id="login-btn" class="auth-btn" onclick="openModal('login')">Login</button>
+
+  <div id="dropdown-container" class="dropdown hidden">
+    <button class="dropdown-toggle"> ☰ </button>
+    <div class="dropdown-menu">
+      <button onclick="openModal('history')">Question History</button>
+      <button onclick="openModal('account')">My Account</button>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- Main Container -->
+<div class="container">
   <div id="overlay">
     <div class="spinner"></div>
     <p id="live-timer">⏱️ 0.00s</p>
   </div>
 
+
+
+
+
   <div class="header">
     <img src="logo.png" alt="Novust Logo" class="logo-crop" />
     <p class="subtext">Here to help as your AI Accountant. Ask away.</p>
-  </div>
+  </div> 
 
-  <textarea id="questionInput" rows="5" placeholder="e.g. How much tax will I pay on £30k income?
-How much national insurance do I pay on my self-employment?
-What is the BIK on my electric car?
-Are petrol expenses tax deductible?"></textarea>
+  <textarea id="questionInput" rows="5" placeholder="e.g. How much tax will I pay on £30k income?"></textarea>
 
   <div style="text-align: center;">
-    <button id="askBtn" onclick="askQuestion()">Ask</button>
+    <button onclick="askQuestion()" id="askBtn">Ask</button>
   </div>
 
   <div id="answer-box">
@@ -36,110 +57,132 @@ Are petrol expenses tax deductible?"></textarea>
     <p id="timer"></p>
   </div>
 
-  
-  <script>
-    /*BELOW IS ACTUAL API LINK
-    */
-    let responseTimes = [];
-    let timerInterval;
+  <div class="footer-links">
+    <button class="footer-btn" onclick="openModal('privacy')">Privacy Policy</button>
+    <button class="footer-btn" onclick="openModal('terms')">T&Cs</button>
+  </div>
+</div>
 
-async function askQuestion() {
-  const askBtn = document.getElementById("askBtn");
-  askBtn.textContent = "Ask again";  // ✅ Changes label after first use
-  
-  const question = document.getElementById("questionInput").value;
-  const responseBox = document.getElementById("answer-text");
-  const timerText = document.getElementById("timer");
-  const overlay = document.getElementById("overlay");
-  const liveTimer = document.getElementById("live-timer");
+<!-- Signup Modal -->
+<div id="signup-modal" class="modal-overlay" onclick="closeSignup(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h3>Create Your Account</h3>
+    <p>Sign up to save your replies and view your question history.</p>
+    <form id="signup-form">
+      <input type="text" id="fname" placeholder="First Name" required><br>
+      <input type="text" id="lname" placeholder="Last Name" required><br>
+      <input type="email" id="email" placeholder="Email" required><br>
+      <input type="date" id="dob" required><br>
+      <input type="password" id="password" placeholder="Password" required><br>
+      <button type="submit">Sign Up</button>
+    </form>
+    <p class="footer-link">
+  <a href="#" onclick="skipSignup()">Continue without saving my replies</a>
+</p>
 
-  
-  if (!question.trim()) {
-    alert("Please enter a question first.");
-    return;
-  }
+  </div>
+</div>
 
-  responseBox.textContent = "";
-  document.getElementById("answer-box").style.display = "block";
-  overlay.style.display = "flex";
+<!-- Modal for Privacy & Terms -->
+<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div id="modal-text" class="modal-text"></div>
+    <p class="footer-link">
+  <a href="#" onclick="closeModal()">Close</a>
+</p>
 
-  let start = Date.now();
-  let elapsed = 0;
-  let timeoutTriggered = false;
-
-  timerText.textContent = "";
-  liveTimer.textContent = "⏱️ 0.00s";
-
-  timerInterval = setInterval(() => {
-    elapsed = ((Date.now() - start) / 1000).toFixed(2);
-    liveTimer.textContent = `⏱️ ${elapsed}s`;
-
-    if (elapsed >= 15 && !timeoutTriggered) {
-      timeoutTriggered = true;
-      clearInterval(timerInterval);
-      overlay.style.display = "none";
-      responseBox.textContent = "We experienced an unexpected error. Please try rewording your question or trying again.";
-    }
-  }, 100);
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-
-    const res = await fetch("https://novust-api.onrender.com/api/ask", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeout);
-    clearInterval(timerInterval);
-    overlay.style.display = "none";
-
-    if (!timeoutTriggered) {
-      const data = await res.json();
-      responseBox.textContent = data.answer;
-      responseBox.classList.add("show");
-      timerText.textContent = `⏱️ Response time: ${elapsed}s — Average today: 1.21s`;
-    }
-  } catch (err) {
-    if (!timeoutTriggered) {
-      clearInterval(timerInterval);
-      overlay.style.display = "none";
-      responseBox.textContent = "Apologies, our assistant ran into a problem. Please try again shortly.";
-    }
-  }
-}
+  </div>
+</div>
 
 
-function copyAnswer() {
-  const btn = document.querySelector(".copy-btn");
-  const answerText = document.getElementById("answer-text").textContent;
-  navigator.clipboard.writeText(answerText).then(() => {
-    btn.classList.add("clicked");
-    btn.textContent = "Copied!";
-    setTimeout(() => {
-      btn.classList.remove("clicked");
-      btn.textContent = "⧉ Copy";
-    }, 2000);
-  });
-}
+<!-- Login Modal -->
+<div id="login-modal" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h3>Login to Your Account to View Question History</h3>
+<form id="login-form">
+  <input type="email" id="login-email" placeholder="Email" required><br>
+  <input type="password" id="login-password" placeholder="Password" required><br>
+  <button type="submit">Login</button>
+</form>
+<p id="login-message" style="color: red;"></p>
+<p class="switch-modal-text">
+  Not registered? <a href="#" onclick="switchToSignup()">Sign up here</a>
+</p>
+
+    <p class="footer-link">
+  <a href="#" onclick="closeModal()">Close</a>
+</p>
+
+  </div>
+</div>
+
+<!--Myaccount and account history modals-->
+<!-- Account Modal -->
+<div id="account-modal" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h3>Update Your Email Or Password</h3>
+<form id="email-update-form">
+  <input type="email" id="current-email" placeholder="Current email" required><br>
+  <input type="password" id="current-password" placeholder="Current password" required><br>
+  <input type="email" id="new-email" placeholder="New email (optional)"><br>
+  <input type="password" id="new-password" placeholder="New password (optional)"><br>
+  <button type="submit">Update Details</button>
+</form>
+<p id="update-status"></p>
+
+    <button class="modal-close" onclick="closeModal()">Close</button>
+  </div>
+</div>
 
 
-/*BELOW IS API DEACTIVATED*/
-/*
 
+<!-- History Modal -->
+<div id="history-modal" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 95vw;">
+    <h3>My Question History</h3>
+    <table id="history-table" border="1">
+      <thead>
+        <tr>
+          <th>Question</th>
+          <th>Answer</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <button class="modal-close" onclick="closeModal()">Close</button>
+  </div>
+</div>
+
+
+
+<script>
+let useAPI = true;
+let hasSignedUp = false;
+let questionCount = 0;
+let timerInterval, timeoutHandle;
 let responseTimes = [];
-let timerInterval;
+//BELOW IS FOR TIMER
+const icons = ["🧾", "💷", "💼"];
+let iconIndex = 0;
+const start = Date.now();
 
-async function askQuestion() {
+
+function askQuestion() {
   const question = document.getElementById("questionInput").value.trim();
   const responseBox = document.getElementById("answer-text");
   const timerText = document.getElementById("timer");
   const overlay = document.getElementById("overlay");
   const liveTimer = document.getElementById("live-timer");
-  const askButton = document.querySelector("button");
+  const logo = document.querySelector('.logo-crop');
+
+  questionCount++;
+
+  const isLoggedIn = !!localStorage.getItem("loggedInEmail");
+  if (questionCount === 2 && !hasSignedUp && !isLoggedIn) {
+    showSignup();
+    return;
+  }
 
   if (!question) {
     alert("Please enter a question.");
@@ -148,56 +191,419 @@ async function askQuestion() {
 
   responseBox.textContent = "";
   document.getElementById("answer-box").style.display = "block";
-
   overlay.style.display = "flex";
   let start = Date.now();
-  let elapsed = 0;
 
-  liveTimer.textContent = "⏱️ 0.00s";
-  timerInterval = setInterval(() => {
-    elapsed = ((Date.now() - start) / 1000).toFixed(2);
-    liveTimer.textContent = `⏱️ ${elapsed}s`;
-  }, 100);
+  
 
-  // --- Simulate 16s delay (longer than timeout)
-  const fakeApiCall = () => new Promise(resolve =>
-    setTimeout(() => resolve({ answer: "API deactivated by host. Please try again later." }), 1200)
-  );
+//NEW TIMER
+// Continuous timer update (every 100ms)
+timerInterval = setInterval(() => {
+  const elapsed = ((Date.now() - start) / 1000).toFixed(2);
+  const icon = icons[iconIndex % icons.length];
+  liveTimer.textContent = `${icon} ${elapsed}s`;
+}, 100);
 
-  // --- Timeout after 15s
-  const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("timeout")), 15000)
-  );
+// Rotate icon separately every 0.5s
+setInterval(() => {
+  iconIndex++;
+}, 500);
 
-  try {
-    const result = await Promise.race([fakeApiCall(), timeout]);
 
+  timeoutHandle = setTimeout(() => {
     clearInterval(timerInterval);
     overlay.style.display = "none";
+    responseBox.textContent = "An unexpected error occurred, please try again.";
+  }, 20000);
 
-    const totalTime = parseFloat(elapsed);
-    responseTimes.push(totalTime);
-    const average = 1.21; // fixed value for now
+  document.getElementById("askBtn").textContent = "Ask again";
 
-    responseBox.textContent = result.answer;
-    responseBox.classList.add("show");
-    timerText.textContent = `⏱️ Response time: ${totalTime}s — Average today: ${average}s`;
+  if (useAPI) {
+    fetch("https://novust-api.onrender.com/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question })
+    })
+    .then(res => res.json())
+    .then(data => {
+      clearInterval(timerInterval);
+      clearTimeout(timeoutHandle);
+      overlay.style.display = "none";
+      const elapsed = ((Date.now() - start) / 1000).toFixed(2);
+      responseTimes.push(elapsed);
+      responseBox.textContent = data.answer;
 
-    askButton.textContent = "Ask again";
+      fetch('/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question,
+          answer: data.answer,
+          email: localStorage.getItem("loggedInEmail") || null
+        })
+      });
 
-  } catch (err) {
-    clearInterval(timerInterval);
-    overlay.style.display = "none";
+      responseBox.classList.add("show");
+      logo.classList.add('pulse');
+      setTimeout(() => logo.classList.remove('pulse'), 600);
+      timerText.textContent = `⏱️ Response time: ${elapsed}s`;
+    });
+  }
+}
 
-    responseBox.textContent = "We experienced an unexpected error. Please try rewording your question or trying again.";
-    responseBox.classList.add("show");
+function showSignup() {
+  document.getElementById("signup-modal").style.display = "flex";
+}
+function closeSignup() {
+  document.getElementById("signup-modal").style.display = "none";
+}
+function skipSignup() {
+  closeSignup();
+  hasSignedUp = false;
+}
 
-    timerText.textContent = "⏱️ Timed out at 15s";
+function logout() {
+  localStorage.removeItem("loggedInEmail");
+  localStorage.removeItem("loggedInName");
+  updateAuthButtons();
+  alert("You’ve been logged out.");
+  window.location.reload();
+}
+
+function updateAuthButtons() {
+  const email = localStorage.getItem("loggedInEmail");
+  const loggedIn = !!email;
+
+  const loginBtn = document.getElementById("login-btn");
+  const dropdown = document.getElementById("dropdown-container");
+  const loginStatus = document.getElementById("login-status");
+
+  if (loggedIn) {
+    loginBtn.classList.add("hidden");
+    dropdown.classList.remove("hidden");
+
+    const name = localStorage.getItem("loggedInName") || email;
+loginStatus.textContent = `✅ Logged in as ${name}`;
+
+    loginStatus.classList.remove("hidden");
+  } else {
+    loginBtn.classList.remove("hidden");
+    dropdown.classList.add("hidden");
+
+    loginStatus.textContent = "";
+    loginStatus.classList.add("hidden");
+  }
+  console.log("🔄 updateAuthButtons running. Logged in:", loggedIn);
+
+}
+
+
+
+function copyAnswer() {
+  const answerText = document.getElementById("answer-text").textContent;
+  navigator.clipboard.writeText(answerText).then(() => {
+    const btn = document.querySelector(".copy-btn");
+    btn.classList.add("clicked");
+    btn.textContent = "Copied!";
+    setTimeout(() => {
+      btn.textContent = "⧉ Copy";
+      btn.classList.remove("clicked");
+    }, 2000);
+  });
+}
+
+/* OLD 
+function openModal(type) {
+  closeModal(); // close any open modal
+  const modal = document.getElementById(`${type}-modal`);
+  if (modal) {
+    modal.style.display = "flex";
+    if (type === "history") loadHistory(); // load Q&A table when history opens
   }
 }
 */
+
+function openModal(type) {
+  closeModal(); // close any open modal
+
+  if (type === "privacy") {
+    document.getElementById("modal-text").innerHTML = `
+      <h3>Privacy Policy</h3>
+<p>Last updated: July 2025</p>
+<p>
+At <strong>Novust Ltd</strong>, we take your privacy seriously. This Privacy Policy outlines how we collect, use, and protect your personal information when you use our UK AI Tax Assistant platform.
+</p>
+
+<h4>1. Information We Collect</h4>
+<ul>
+  <li>Full name, email address, and date of birth during sign-up.</li>
+  <li>Questions you ask, and the corresponding AI-generated responses.</li>
+  <li>Basic usage data (e.g. browser, device type) for analytics and support.</li>
+</ul>
+
+<h4>2. How We Use Your Data</h4>
+<ul>
+  <li>To provide personalized tax responses and save your history.</li>
+  <li>To allow you to log in and manage your account.</li>
+  <li>To improve the accuracy and quality of our AI responses.</li>
+</ul>
+
+<h4>3. Data Security</h4>
+<p>
+Your data is stored securely and passwords are encrypted. We do not sell your information to third parties.
+</p>
+
+<h4>4. Data Retention</h4>
+<p>
+We retain your question and account data for as long as your account is active. You may request deletion by contacting us.
+</p>
+
+<h4>5. Your Rights</h4>
+<ul>
+  <li>Access or update your information via "My Account".</li>
+  <li>Request account or data deletion.</li>
+</ul>
+
+<p>
+For any privacy-related concerns, contact <a href="mailto:privacy@novust.com">privacy@novust.com</a>.
+</p>
+
+    `;
+    document.getElementById("modal-overlay").style.display = "flex";
+    return;
+  }
+
+  if (type === "terms") {
+    document.getElementById("modal-text").innerHTML = `
+      <h3>Terms & Conditions</h3>
+<p>Last updated: July 2025</p>
+<p>
+By using the services of <strong>Novust Ltd</strong>, you agree to the following terms:
+</p>
+
+<h4>1. Purpose of the Service</h4>
+<p>
+This site provides AI-generated tax guidance and is not a substitute for formal financial or legal advice. Always consult a qualified accountant or HMRC for complex cases.
+</p>
+
+<h4>2. Account Usage</h4>
+<ul>
+  <li>One account per person. You are responsible for keeping your login credentials secure.</li>
+  <li>Do not use the service for illegal or abusive purposes.</li>
+</ul>
+
+<h4>3. Accuracy of Information</h4>
+<p>
+While we strive to provide accurate guidance, Novust Ltd is not liable for any actions taken based on AI responses.
+</p>
+
+<h4>4. Service Availability</h4>
+<p>
+We may update, modify, or suspend services without notice for maintenance, security, or feature improvements.
+</p>
+
+<h4>5. Intellectual Property</h4>
+<p>
+All content and code are the property of Novust Ltd. You may not copy, reproduce, or reuse without written permission.
+</p>
+
+<h4>6. Termination</h4>
+<p>
+We reserve the right to suspend or terminate your account at our discretion for breach of these terms.
+</p>
+
+<p>
+For questions, contact <a href="mailto:support@novust.com">support@novust.com</a>.
+</p>
+
+    `;
+    document.getElementById("modal-overlay").style.display = "flex";
+    return;
+  }
+
+  // ✅ For account/history/login/etc.
+  const modal = document.getElementById(`${type}-modal`);
+  if (modal) {
+    modal.style.display = "flex";
+    if (type === "history") loadHistory(); // reload table
+  }
+}
+
+
+
+
+
+function closeModal(event) {
+  const modals = document.querySelectorAll(".modal-overlay");
+  modals.forEach(m => m.style.display = "none");
+  if (event) event.stopPropagation();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  // 🔁 Signup handling
+  const signupForm = document.getElementById("signup-form");
+  if (signupForm) {
+    signupForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const email = document.getElementById("email").value;
+      const userData = {
+        fname: document.getElementById("fname").value,
+        lname: document.getElementById("lname").value,
+        email,
+        dob: document.getElementById("dob").value,
+        password: document.getElementById("password").value,
+      };
+
+      fetch("/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(userData),
+      })
+        .then((res) => res.text())
+        .then((msg) => {
+          console.log("✅ Signup complete:", msg);
+          localStorage.setItem("loggedInEmail", email);
+          localStorage.setItem("loggedInName", userData.fname);
+          closeSignup();
+          updateAuthButtons();
+          askQuestion();
+        })
+        .catch((err) => console.error("❌ Signup error:", err));
+    });
+    
+    // Prewarm ChatGPT API on first load
+if (useAPI && !sessionStorage.getItem("apiWarmedUp")) {
+  console.log("⚡ Prewarming ChatGPT API...");
+  fetch("https://novust-api.onrender.com/api/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question: "Hello" }),
+  })
+  .then(res => res.json())
+  .then(() => {
+    console.log("✅ API warmed up.");
+    sessionStorage.setItem("apiWarmedUp", "true");
+  })
+  .catch(err => console.warn("⚠️ Prewarm failed:", err));
+}
+
+  }
+
+  // 🔁 Login handling
+  const loginForm = document.getElementById("login-form");
+  if (loginForm) {
+    loginForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const email = document.getElementById("login-email").value;
+      const password = document.getElementById("login-password").value;
+
+      fetch("/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+  if (data.success) {
+    localStorage.setItem("loggedInEmail", email);
+    localStorage.setItem("loggedInName", data.fname); // 👈 ADD THIS
+    closeModal();
+    updateAuthButtons();
+  } else {
+    document.getElementById("login-message").textContent =
+      "Invalid email or password.";
+  }
+})
+
+        .catch((err) => {
+          console.error("❌ Login error:", err);
+        });
+    });
+  }
+
+  // ✅ Always update buttons on load
+  updateAuthButtons();
+});
+
+//outside DOMContentLoad so global scope
+  function switchToSignup() {
+  closeModal(); // Close login modal
+  document.getElementById("signup-modal").style.display = "flex";
+}
+
+// 🔄 Account Form Handler
+const emailForm = document.getElementById("email-update-form");
+if (emailForm) {
+  emailForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    const currentEmail = document.getElementById("current-email").value;
+    const password = document.getElementById("current-password").value;
+    const newEmail = document.getElementById("new-email").value;
+    const newPassword = document.getElementById("new-password").value;
+
+    fetch("/update-details", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        currentEmail,
+        password,
+        newEmail,
+        newPassword
+      }),
+    })
+    .then(res => res.text())
+    .then(msg => {
+      const status = document.getElementById("update-status");
+      status.textContent = msg;
+
+      if (msg.includes("success")) {
+        status.style.color = "green";
+if (newEmail) {
+  localStorage.setItem("loggedInEmail", newEmail);
+}
+if (localStorage.getItem("loggedInName") && newEmail) {
+  // Force a refetch of user info if needed
+  fetch(`/user-info?email=${encodeURIComponent(newEmail)}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.fname) {
+        localStorage.setItem("loggedInName", data.fname);
+        updateAuthButtons(); // ✅ Refresh UI
+      }
+    });
+}
+
+      } else {
+        status.style.color = "red";
+      }
+    });
+  });
+}
+
+
+
+
+// 🔄 History Table Loader
+function loadHistory() {
+  const email = localStorage.getItem("loggedInEmail");
+  if (!email) return;
+
+  fetch(`/history?email=${encodeURIComponent(email)}`)
+    .then((res) => res.json())
+    .then((data) => {
+      const tbody = document.querySelector("#history-table tbody");
+      tbody.innerHTML = "";
+      data.forEach((entry) => {
+        const row = `<tr><td>${entry.question}</td><td>${entry.answer}</td><td>${entry.timestamp}</td></tr>`;
+        tbody.innerHTML += row;
+      });
+    });
+}
+
+
+
 </script>
 
-  </div>
 </body>
 </html>
