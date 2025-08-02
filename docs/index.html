@@ -586,14 +586,12 @@ if (localStorage.getItem("loggedInName") && newEmail) {
 }
 
 
-
-
 // 🔄 History Table Loader
 function loadHistory() {
   const email = localStorage.getItem("loggedInEmail");
   if (!email) return;
 
-  email=${encodeURIComponent(email)}`)
+  fetch(`${API_BASE}/history?email=${encodeURIComponent(email)}`)
     .then((res) => res.json())
     .then((data) => {
       const tbody = document.querySelector("#history-table tbody");
@@ -604,6 +602,7 @@ function loadHistory() {
       });
     });
 }
+
 
 
 
