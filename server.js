@@ -6,6 +6,14 @@ const Database = require("better-sqlite3");
 const app = express();
 const port = 3000;
 
+require("dotenv").config(); // Load .env FIRST
+
+const OpenAI = require("openai");
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+
 // Middleware
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "docs")));
@@ -195,5 +203,30 @@ app.get('/history', (req, res) => {
   const rows = stmt.all(email);
   res.json(rows);
 });
+
+
+
+app.post("/api/ask", async (req, res) => {
+  const { question } = req.body;
+
+  if (!question) {
+    return res.status(400).json({ error: "No question provided." });
+  }
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [{ role: "user", content: question }],
+    });
+
+    const answer = completion.choices[0].message.content;
+    res.json({ answer });
+  } catch (err) {
+    console.error("❌ API error:", err.message);
+    res.status(500).json({ error: "Failed to fetch AI response." });
+  }
+});
+
+
 
 
