@@ -219,7 +219,8 @@ setInterval(() => {
   document.getElementById("askBtn").textContent = "Ask again";
 
   if (useAPI) {
-    fetch("https://novust-api.onrender.com/api/ask", {
+    //fetch("https://novust-api.onrender.com/api/ask", {
+    fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question })
@@ -474,8 +475,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // Prewarm ChatGPT API on first load
 if (useAPI && !sessionStorage.getItem("apiWarmedUp")) {
   console.log("⚡ Prewarming ChatGPT API...");
-  fetch("https://novust-api.onrender.com/api/ask", {
-    method: "POST",
+  //fetch("https://novust-api.onrender.com/api/ask", {
+  fetch("/api/ask", {  
+  method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question: "Hello" }),
   })
