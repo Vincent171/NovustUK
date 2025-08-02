@@ -171,7 +171,7 @@ const start = Date.now();
 const API_BASE = "https://novustuk.onrender.com";
 
 
-
+/*OLD askQuestion()
 function askQuestion() {
   const question = document.getElementById("questionInput").value.trim();
   const responseBox = document.getElementById("answer-text");
@@ -198,7 +198,97 @@ function askQuestion() {
   overlay.style.display = "flex";
   let start = Date.now();
 
-  
+*/
+
+function askQuestion() {
+  try {
+    const question = document.getElementById("questionInput").value.trim();
+    const responseBox = document.getElementById("answer-text");
+    const timerText = document.getElementById("timer");
+    const overlay = document.getElementById("overlay");
+    const liveTimer = document.getElementById("live-timer");
+    const logo = document.querySelector('.logo-crop');
+
+    questionCount++;
+    const isLoggedIn = !!localStorage.getItem("loggedInEmail");
+
+    if (questionCount === 2 && !hasSignedUp && !isLoggedIn) {
+      showSignup();
+      return;
+    }
+
+    if (!question) {
+      alert("Please enter a question.");
+      return;
+    }
+
+    responseBox.textContent = "";
+    document.getElementById("answer-box").style.display = "block";
+    overlay.style.display = "flex";
+    let start = Date.now();
+
+    // Timer icon cycling
+    timerInterval = setInterval(() => {
+      const elapsed = ((Date.now() - start) / 1000).toFixed(2);
+      const icon = icons[iconIndex % icons.length];
+      liveTimer.textContent = `${icon} ${elapsed}s`;
+    }, 100);
+
+    setInterval(() => iconIndex++, 500);
+
+    timeoutHandle = setTimeout(() => {
+      clearInterval(timerInterval);
+      overlay.style.display = "none";
+      responseBox.textContent = "An unexpected error occurred, please try again.";
+    }, 20000);
+
+    document.getElementById("askBtn").textContent = "Ask again";
+
+    // 🔗 Send question to backend
+    fetch(`${API_BASE}/api/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question })
+    })
+    .then(res => res.json())
+    .then(data => {
+      clearInterval(timerInterval);
+      clearTimeout(timeoutHandle);
+      overlay.style.display = "none";
+
+      const elapsed = ((Date.now() - start) / 1000).toFixed(2);
+      responseTimes.push(elapsed);
+      responseBox.textContent = data.answer;
+      console.log("🟢 Answer received:", data.answer);
+
+      // ⏺️ Log question and answer (optional)
+      fetch(`${API_BASE}/log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question,
+          answer: data.answer,
+          email: localStorage.getItem("loggedInEmail") || null
+        })
+      });
+
+      responseBox.classList.add("show");
+      logo.classList.add('pulse');
+      setTimeout(() => logo.classList.remove('pulse'), 600);
+      timerText.textContent = `⏱️ Response time: ${elapsed}s`;
+    })
+    .catch(err => {
+      console.error("❌ API call failed:", err);
+      clearInterval(timerInterval);
+      overlay.style.display = "none";
+      responseBox.textContent = "Failed to get a response. Please try again later.";
+    });
+
+  } catch (error) {
+    console.error("🚨 Error in askQuestion():", error);
+  }
+}
+
 
 //NEW TIMER
 // Continuous timer update (every 100ms)
