@@ -45,7 +45,10 @@
     <p class="subtext">Here to help as your AI Accountant. Ask away.</p>
   </div> 
 
-  <textarea id="questionInput" rows="5" placeholder="e.g. How much tax will I pay on £30k income?"></textarea>
+  <textarea id="questionInput" rows="5" placeholder="e.g. How much tax will I pay on £30k income?
+  How does inhertiance tax work and what is taper relief?
+  Can I claim enterianing expenses off my corporation tax
+  What is the BIK on an electric car?"></textarea>
 
   <div style="text-align: center;">
     <button onclick="askQuestion()" id="askBtn">Ask</button>
@@ -171,7 +174,7 @@ const start = Date.now();
 const API_BASE = "https://novustuk.onrender.com";
 
 
-/*OLD askQuestion()*/
+/*OLD askQuestion()
 function askQuestion() {
   const question = document.getElementById("questionInput").value.trim();
   const responseBox = document.getElementById("answer-text");
@@ -199,8 +202,9 @@ function askQuestion() {
   let start = Date.now();
 
 
+*/
 
-/* NEW ASKQUESTION
+/*NEW ASKQUESTION*/
 function askQuestion() {
   try {
     const question = document.getElementById("questionInput").value.trim();
@@ -289,22 +293,25 @@ function askQuestion() {
     console.error("🚨 Error in askQuestion():", error);
   }
 }
-*/
 
-//NEW TIMER
+
+//NEW TIMER - DELETE
 // Continuous timer update (every 100ms)
-timerInterval = setInterval(() => {
+/*timerInterval = setInterval(() => {
   const elapsed = ((Date.now() - start) / 1000).toFixed(2);
   const icon = icons[iconIndex % icons.length];
   liveTimer.textContent = `${icon} ${elapsed}s`;
 }, 100);
+*/
 
 // Rotate icon separately every 0.5s
+/*
 setInterval(() => {
   iconIndex++;
 }, 500);
+*/
 
-
+/* - DELETE
   timeoutHandle = setTimeout(() => {
     clearInterval(timerInterval);
     overlay.style.display = "none";
@@ -344,7 +351,8 @@ setInterval(() => {
       timerText.textContent = `⏱️ Response time: ${elapsed}s`;
     });
   }
-}
+    */
+
 
 function showSignup() {
   document.getElementById("signup-modal").style.display = "flex";
