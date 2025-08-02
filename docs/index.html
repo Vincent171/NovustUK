@@ -9,6 +9,8 @@
 
 
 
+
+
 <body>
 <div id="auth-header" class="auth-header">
   <span id="login-status" class="hidden"></span>
@@ -166,6 +168,8 @@ let responseTimes = [];
 const icons = ["🧾", "💷", "💼"];
 let iconIndex = 0;
 const start = Date.now();
+const API_BASE = "https://novustuk.onrender.com";
+
 
 
 function askQuestion() {
@@ -219,8 +223,7 @@ setInterval(() => {
   document.getElementById("askBtn").textContent = "Ask again";
 
   if (useAPI) {
-    //fetch("https://novust-api.onrender.com/api/ask", {
-    fetch("/api/ask", {
+    fetch(`${API_BASE}/api/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question })
@@ -234,7 +237,7 @@ setInterval(() => {
       responseTimes.push(elapsed);
       responseBox.textContent = data.answer;
 
-      fetch('/log', {
+      fetch(`${API_BASE}/log`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -455,7 +458,7 @@ document.addEventListener("DOMContentLoaded", () => {
         password: document.getElementById("password").value,
       };
 
-      fetch("/signup", {
+      fetch(`${API_BASE}/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(userData),
@@ -475,8 +478,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Prewarm ChatGPT API on first load
 if (useAPI && !sessionStorage.getItem("apiWarmedUp")) {
   console.log("⚡ Prewarming ChatGPT API...");
-  //fetch("https://novust-api.onrender.com/api/ask", {
-  fetch("/api/ask", {  
+  fetch(`${API_BASE}/api/ask`, {  
   method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question: "Hello" }),
@@ -499,7 +501,7 @@ if (useAPI && !sessionStorage.getItem("apiWarmedUp")) {
       const email = document.getElementById("login-email").value;
       const password = document.getElementById("login-password").value;
 
-      fetch("/login", {
+      fetch(`${API_BASE}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -544,7 +546,7 @@ if (emailForm) {
     const newEmail = document.getElementById("new-email").value;
     const newPassword = document.getElementById("new-password").value;
 
-    fetch("/update-details", {
+    fetch(`${API_BASE}/update-details`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -566,7 +568,7 @@ if (newEmail) {
 }
 if (localStorage.getItem("loggedInName") && newEmail) {
   // Force a refetch of user info if needed
-  fetch(`/user-info?email=${encodeURIComponent(newEmail)}`)
+  fetch(`${API_BASE}/user-info?email=${encodeURIComponent(newEmail)}`)
     .then(res => res.json())
     .then(data => {
       if (data.fname) {
@@ -591,7 +593,7 @@ function loadHistory() {
   const email = localStorage.getItem("loggedInEmail");
   if (!email) return;
 
-  fetch(`/history?email=${encodeURIComponent(email)}`)
+  email=${encodeURIComponent(email)}`)
     .then((res) => res.json())
     .then((data) => {
       const tbody = document.querySelector("#history-table tbody");
