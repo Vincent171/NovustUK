@@ -171,7 +171,7 @@ const start = Date.now();
 const API_BASE = "https://novustuk.onrender.com";
 
 
-/*OLD askQuestion()
+/*OLD askQuestion()*/
 function askQuestion() {
   const question = document.getElementById("questionInput").value.trim();
   const responseBox = document.getElementById("answer-text");
@@ -198,8 +198,9 @@ function askQuestion() {
   overlay.style.display = "flex";
   let start = Date.now();
 
-*/
 
+
+/* NEW ASKQUESTION
 function askQuestion() {
   try {
     const question = document.getElementById("questionInput").value.trim();
@@ -288,7 +289,7 @@ function askQuestion() {
     console.error("🚨 Error in askQuestion():", error);
   }
 }
-
+*/
 
 //NEW TIMER
 // Continuous timer update (every 100ms)
