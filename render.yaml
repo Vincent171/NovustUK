@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: novust-api
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+    autoDeploy: true
