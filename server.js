@@ -1,35 +1,83 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// server.js (Novust) — cleaned + fixed
+// ─────────────────────────────────────────────────────────────────────────────
 const express = require("express");
-const bodyParser = require("body-parser");
+const cors = require("cors");
 const path = require("path");
 const Database = require("better-sqlite3");
+require("dotenv").config();
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
-require("dotenv").config(); // Load .env FIRST
+// Persistent data dir (Render disk or local)
+const DATA_DIR = process.env.DATA_DIR || __dirname;
 
-const OpenAI = require("openai");
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// ── SQLite DBs (single source of truth) ──────────────────────────────────────
+const db = new Database(path.join(DATA_DIR, "questions.db")); // Q&A
+const userDB = new Database(path.join(DATA_DIR, "users.db")); // Users
+
+// CORS + parsers — BEFORE routes/static
+const allowed = new Set([
+  "http://localhost:3000",
+  "http://127.0.0.1:5500",
+  "http://localhost:5173",             // common Vite port (optional)
+  "https://novustuk.netlify.app"
+  // add your custom domain here when ready, e.g. "https://novust.com"
+]);
+
+//debug tool
+/*app.use((req, res, next) => {
+  console.log("CORS check — Origin:", req.headers.origin, " Referer:", req.headers.referer);
+  next();
+});*/
+//end debug
+
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow server-to-server / curl / Postman (no Origin)
+    if (!origin) return cb(null, true);
+
+    // Allow local file:// (some browsers send "null")
+    if (origin === "null") return cb(null, true);
+
+    try {
+      const { hostname } = new URL(origin);
+
+      // Allow any localhost or 127.0.0.1 (any port)
+      if (hostname === "localhost" || hostname === "127.0.0.1") {
+        return cb(null, true);
+      }
+
+      // Allow any Netlify preview or main domain
+      if (hostname.endsWith(".netlify.app")) return cb(null, true);
+      if (hostname === "novustuk.netlify.app") return cb(null, true);
+
+      // Optional: add your custom prod domain here later
+      // if (hostname === "novust.com") return cb(null, true);
+
+      return cb(new Error("Not allowed by CORS"));
+    } catch {
+      return cb(new Error("Bad origin"));
+    }
+  },
+  credentials: true
+}));
 
 
-// Middleware
-app.use(bodyParser.json());
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+
+// Static (optional; keep after parsers)
 app.use(express.static(path.join(__dirname, "docs")));
 
-// SQLite databases
-//const db = new Database("./questions.db");
-const db = new Database(path.join(__dirname, "questions.db"));
-//old users line deleteed.
-const userDB = new Database(path.join(__dirname, "users.db"));
-
-
-
+// OpenAI
+const OpenAI = require("openai");
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 console.log("✅ Connected to both databases.");
 
-// Create tables if not exists
+// Tables
 db.prepare(`
   CREATE TABLE IF NOT EXISTS questions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,181 +100,224 @@ userDB.prepare(`
   )
 `).run();
 
-//CONSOLE LOG now included
-app.post('/log', (req, res) => {
-  const { question, answer, email } = req.body;
+// ── Health ──────────────────────────────────────────────────────────────────
+app.get("/health", (_req, res) => {
+  return res.json({ ok: true, service: "novust-api" });
+});
 
-  console.log("🟡 Incoming log body:", { question, answer, email });
-
-  if (!question || !answer) {
-    console.log("⚠️ Missing question or answer");
-    return res.status(400).send("Missing data");
-  }
-
+// ── ASK (UK tax system prompt) ───────────────────────────────────────────────
+app.post("/api/ask", async (req, res) => {
   try {
-    const stmt = db.prepare("INSERT INTO questions (question, answer, email) VALUES (?, ?, ?)");
-    
-    // Force email to be null or string
-    const safeEmail = typeof email === "string" ? email : null;
+    const { question } = req.body;
+    if (!question) return res.status(400).json({ error: "Question is required" });
 
-    stmt.run(question, answer, safeEmail);
+    const messages = [
+      {
+        role: "system",
+        content: [
+          "You are a UK chartered tax adviser. Assume the user is in the United Kingdom.",
+          "Use HMRC terminology and current UK thresholds; give amounts in GBP (£).",
+          "Avoid US rules unless explicitly asked to compare.",
+          "Include a short non‑advice disclaimer for complex cases."
+        ].join(" ")
+      },
+      { role: "user", content: `UK context — ${question}` }
+    ];
 
-    console.log("✅ Question logged:", question);
-    console.log("✅ Answer received:", answer);
-    res.status(200).send("Logged successfully");
+    const completion = await openai.chat.completions.create({
+      model: process.env.NOVUST_MODEL || "gpt-4o-mini",
+      messages
+    });
 
+    const answer =
+      completion.choices?.[0]?.message?.content?.trim() ||
+      "Sorry — I couldn’t generate an answer.";
+
+    return res.json({ answer });
   } catch (err) {
-    console.error("❌ DB error:", err.message);
-    res.status(500).send("Database error");
+    console.error("ask error:", err);
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
+// Optional alias so older frontend hitting /ask still works:
+app.post("/ask", (req, res) => {
+  req.url = "/api/ask";
+  return app._router.handle(req, res);
+});
 
-
-/*REPLACED with above console log for testing
-// POST /log — store Q&A
-app.post('/log', (req, res) => {
-  const { question, answer, email } = req.body;
-
-  if (!question || !answer) {
-    console.log("⚠️ Missing question or answer");
-    return res.status(400).send("Missing data");
-  }
-
+// ── LOG Q&A (store into questions table) ─────────────────────────────────────
+app.post("/log", (req, res) => {
   try {
-    const stmt = db.prepare("INSERT INTO questions (question, answer, email) VALUES (?, ?, ?)");
-    stmt.run(
-      question,
-      answer,
-      typeof email === "string" ? email : null, // ✅ ensures email is a string or null
-      function (err) {
-        if (err) {
-          console.error("❌ DB insert error:", err.message);
-          return res.status(500).send("Database error");
-        }
-        console.log("✅ Question logged:", question);
-        console.log("✅ Answer received:", answer);
-        res.status(200).send("Logged successfully");
-      }
-    );
+    const { question, answer, email } = req.body;
+    if (!question || !answer)
+      return res.status(400).json({ error: "question and answer are required" });
+
+    db.prepare(`
+      INSERT INTO questions (question, answer, email)
+      VALUES (?, ?, ?)
+    `).run(question, answer, email || null);
+
+    return res.json({ message: "Log saved" });
   } catch (err) {
-    console.error("❌ DB error:", err.message);
-    res.status(500).send("Database error");
+    console.error("log error:", err);
+    return res.status(500).json({ error: "Failed to save log" });
   }
 });
-*/
 
-// POST /signup — store user
+// ── SIGNUP (use userDB) ─────────────────────────────────────────────────────
 app.post("/signup", (req, res) => {
-  const { fname, lname, email, dob, password } = req.body;
-
-  if (!fname || !lname || !email || !dob || !password) {
-    console.log("⚠️ Incomplete sign-up data");
-    return res.status(400).send("All fields required");
-  }
-
   try {
-    const stmt = userDB.prepare(`
-      INSERT INTO users (fname, lname, email, dob, password)
+    const { fname, lname, email, dob, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    const insert = userDB.prepare(`
+      INSERT INTO users (email, fname, lname, dob, password)
       VALUES (?, ?, ?, ?, ?)
     `);
-    stmt.run(fname, lname, email, dob, password);
-    console.log(`✅ New user signed up: ${email}`);
-    res.status(200).send("Signup successful");
+
+    try {
+      insert.run(email, fname || "", lname || "", dob || "", password);
+    } catch (e) {
+      if (String(e).includes("UNIQUE")) {
+        return res.status(409).json({ error: "Email already registered" });
+      }
+      throw e;
+    }
+
+    console.log("🟢 /signup:", email);
+    return res.json({ success: true, message: "Signup successful" });
   } catch (err) {
-    console.error("❌ Sign-up error:", err.message);
-    res.status(500).send("User already exists or DB error");
+    console.error("signup error:", err);
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
-// Start server
+// ── LOGIN (use userDB) ──────────────────────────────────────────────────────
+app.post("/login", (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password)
+      return res.status(400).json({ error: "Email and password are required" });
+
+    const row = userDB.prepare(`
+      SELECT email, fname, password
+      FROM users
+      WHERE email = ?
+    `).get(email);
+
+    if (!row) return res.json({ success: false });
+
+    // If hashing, replace with bcrypt.compareSync(...)
+    if (row.password !== password) return res.json({ success: false });
+
+    console.log("🟢 /login:", email);
+    return res.json({ success: true, fname: row.fname || "" });
+  } catch (err) {
+    console.error("login error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── UPDATE DETAILS (use userDB, also update questions.email) ─────────────────
+app.post("/update-details", (req, res) => {
+  try {
+    const { currentEmail, password, newEmail, newPassword } = req.body;
+    if (!currentEmail || !password) {
+      return res.status(400).send("Missing credentials");
+    }
+
+    const user = userDB.prepare(`
+      SELECT email, password
+      FROM users
+      WHERE email = ?
+    `).get(currentEmail);
+
+    if (!user) return res.status(404).send("Account not found");
+
+    // If hashing, use bcrypt.compareSync(password, user.password)
+    if (user.password !== password) return res.status(401).send("Incorrect password");
+
+    const updates = [];
+    const params = [];
+
+    if (newEmail && newEmail !== currentEmail) {
+      updates.push("email = ?");
+      params.push(newEmail);
+    }
+    if (newPassword) {
+      updates.push("password = ?");
+      params.push(newPassword);
+    }
+    params.push(currentEmail);
+
+    if (updates.length) {
+      userDB.prepare(`UPDATE users SET ${updates.join(", ")} WHERE email = ?`).run(...params);
+
+      // also update historical questions email in the Q&A DB
+      if (newEmail && newEmail !== currentEmail) {
+        db.prepare(`UPDATE questions SET email = ? WHERE email = ?`).run(newEmail, currentEmail);
+      }
+    }
+
+    return res.send("Update success");
+  } catch (err) {
+    console.error("update-details error:", err);
+    return res.status(500).send("Server error");
+  }
+});
+
+// ── HISTORY (read from questions table) ──────────────────────────────────────
+app.get("/history", (req, res) => {
+  try {
+    const email = req.query.email;
+    if (!email) return res.status(400).json({ error: "email is required" });
+
+    const rows = db.prepare(`
+      SELECT question, answer, timestamp
+      FROM questions
+      WHERE email = ?
+      ORDER BY datetime(timestamp) DESC
+      LIMIT 200
+    `).all(email);
+
+    return res.json(rows);
+  } catch (err) {
+    console.error("history error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── USER INFO (use userDB) ──────────────────────────────────────────────────
+app.get("/user-info", (req, res) => {
+  try {
+    const email = req.query.email;
+    if (!email) return res.status(400).json({ error: "email is required" });
+
+    const row = userDB.prepare(`
+      SELECT email, fname, lname
+      FROM users
+      WHERE email = ?
+    `).get(email);
+
+    if (!row) return res.status(404).json({ error: "Not found" });
+    return res.json(row);
+  } catch (err) {
+    console.error("user-info error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Central error handler (last) ─────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error("🔥 Unhandled error:", err);
+  if (res.headersSent) return next(err);
+  return res.status(500).json({ error: "Server error" });
+});
+
+// ── Start ───────────────────────────────────────────────────────────────────
 app.listen(port, () => {
   console.log(`🚀 Server running on http://localhost:${port}`);
 });
-
-app.post("/login", (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ success: false, message: "Missing fields" });
-  }
-
-  const query = "SELECT * FROM users WHERE email = ? AND password = ?";
-  const row = userDB.prepare(query).get(email, password);
-
-  if (row) {
-    res.json({ success: true, fname: row.fname });
-
-  } else {
-    res.json({ success: false });
-  }
-  res.json({ success: true, fname: row.fname });
-
-
-});
-
-// POST /update-email — change user's email
-app.post('/update-details', (req, res) => {
-  const { currentEmail, password, newEmail, newPassword } = req.body;
-  if (!currentEmail || !password) {
-    return res.status(400).send("Missing current credentials");
-  }
-
-  const stmt = userDB.prepare("SELECT * FROM users WHERE email = ? AND password = ?");
-  const user = stmt.get(currentEmail, password);
-  if (!user) {
-    return res.status(401).send("Invalid current email or password");
-  }
-
-  // Update email if provided
-  if (newEmail) {
-    userDB.prepare("UPDATE users SET email = ? WHERE email = ?").run(newEmail, currentEmail);
-    db.prepare("UPDATE questions SET email = ? WHERE email = ?").run(newEmail, currentEmail);
-  }
-
-  // Update password if provided
-  if (newPassword) {
-    const emailToUse = newEmail || currentEmail;
-    userDB.prepare("UPDATE users SET password = ? WHERE email = ?").run(newPassword, emailToUse);
-  }
-
-  res.send("Account update successful");
-});
-
-
-// GET /history — fetch questions by email
-app.get('/history', (req, res) => {
-  const email = req.query.email;
-  if (!email) return res.status(400).send("Missing email");
-
-  const stmt = db.prepare("SELECT question, answer, timestamp FROM questions WHERE email = ? ORDER BY timestamp DESC");
-  const rows = stmt.all(email);
-  res.json(rows);
-});
-
-
-
-app.post("/api/ask", async (req, res) => {
-  const { question } = req.body;
-
-  if (!question) {
-    return res.status(400).json({ error: "No question provided." });
-  }
-
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [{ role: "user", content: question }],
-    });
-
-    const answer = completion.choices[0].message.content;
-    res.json({ answer });
-  } catch (err) {
-    console.error("❌ API error:", err.message);
-    res.status(500).json({ error: "Failed to fetch AI response." });
-  }
-});
-
-
-
-
