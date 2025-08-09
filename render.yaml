@@ -8,4 +8,16 @@ services:
     envVars:
       - key: OPENAI_API_KEY
         sync: false
+      - key: NOVUST_MODEL
+        value: gpt-4o-mini
+      # Only needed if you add the disk block below:
+      - key: DATA_DIR
+        value: /var/data
+    healthCheckPath: /health
     autoDeploy: true
+
+    # OPTIONAL: persistent SQLite across deploys/restarts
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1

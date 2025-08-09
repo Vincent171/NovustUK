@@ -46,9 +46,9 @@
   </div> 
 
   <textarea id="questionInput" rows="5" placeholder="e.g. How much tax will I pay on £30k income?
-  How does inhertiance tax work and what is taper relief?
-  Can I claim enterianing expenses off my corporation tax
-  What is the BIK on an electric car?"></textarea>
+How does inhertiance tax work and what is taper relief?
+Can I claim enterianing expenses off my corporation tax
+What is the BIK on an electric car?"></textarea>
 
   <div style="text-align: center;">
     <button onclick="askQuestion()" id="askBtn">Ask</button>
@@ -171,38 +171,18 @@ let responseTimes = [];
 const icons = ["🧾", "💷", "💼"];
 let iconIndex = 0;
 const start = Date.now();
-const API_BASE = "https://novustuk.onrender.com";
+
+// --- Environment-aware API base ---
+const isLocalPage =
+  location.hostname === "localhost" ||
+  location.hostname === "127.0.0.1" ||
+  location.protocol === "file:";
+
+const API_BASE = isLocalPage
+  ? "http://localhost:3000"         // your local Node/Express port
+  : "https://novustuk.onrender.com"; // production API on Render
 
 
-/*OLD askQuestion()
-function askQuestion() {
-  const question = document.getElementById("questionInput").value.trim();
-  const responseBox = document.getElementById("answer-text");
-  const timerText = document.getElementById("timer");
-  const overlay = document.getElementById("overlay");
-  const liveTimer = document.getElementById("live-timer");
-  const logo = document.querySelector('.logo-crop');
-
-  questionCount++;
-
-  const isLoggedIn = !!localStorage.getItem("loggedInEmail");
-  if (questionCount === 2 && !hasSignedUp && !isLoggedIn) {
-    showSignup();
-    return;
-  }
-
-  if (!question) {
-    alert("Please enter a question.");
-    return;
-  }
-
-  responseBox.textContent = "";
-  document.getElementById("answer-box").style.display = "block";
-  overlay.style.display = "flex";
-  let start = Date.now();
-
-
-*/
 
 /*NEW ASKQUESTION*/
 function askQuestion() {
@@ -293,65 +273,6 @@ function askQuestion() {
     console.error("🚨 Error in askQuestion():", error);
   }
 }
-
-
-//NEW TIMER - DELETE
-// Continuous timer update (every 100ms)
-/*timerInterval = setInterval(() => {
-  const elapsed = ((Date.now() - start) / 1000).toFixed(2);
-  const icon = icons[iconIndex % icons.length];
-  liveTimer.textContent = `${icon} ${elapsed}s`;
-}, 100);
-*/
-
-// Rotate icon separately every 0.5s
-/*
-setInterval(() => {
-  iconIndex++;
-}, 500);
-*/
-
-/* - DELETE
-  timeoutHandle = setTimeout(() => {
-    clearInterval(timerInterval);
-    overlay.style.display = "none";
-    responseBox.textContent = "An unexpected error occurred, please try again.";
-  }, 20000);
-
-  document.getElementById("askBtn").textContent = "Ask again";
-
-  if (useAPI) {
-    fetch(`${API_BASE}/api/ask`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question })
-    })
-    .then(res => res.json())
-    .then(data => {
-      clearInterval(timerInterval);
-      clearTimeout(timeoutHandle);
-      overlay.style.display = "none";
-      const elapsed = ((Date.now() - start) / 1000).toFixed(2);
-      responseTimes.push(elapsed);
-      responseBox.textContent = data.answer;
-
-      fetch(`${API_BASE}/log`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question,
-          answer: data.answer,
-          email: localStorage.getItem("loggedInEmail") || null
-        })
-      });
-
-      responseBox.classList.add("show");
-      logo.classList.add('pulse');
-      setTimeout(() => logo.classList.remove('pulse'), 600);
-      timerText.textContent = `⏱️ Response time: ${elapsed}s`;
-    });
-  }
-    */
 
 
 function showSignup() {
