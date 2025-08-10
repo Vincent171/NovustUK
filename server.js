@@ -138,9 +138,15 @@ app.get("/debug/env", (_req, res) => {
   res.json({
     OPENAI_API_KEY: masked,
     NOVUST_MODEL: process.env.NOVUST_MODEL || null,
-    NODE_ENV: process.env.NODE_ENV || null
+    NODE_ENV: process.env.NODE_ENV || null,
+    RENDER_SERVICE_NAME: process.env.RENDER_SERVICE_NAME || null,
+    RENDER_INSTANCE_ID: process.env.RENDER_INSTANCE_ID || null,
+    RENDER_GIT_BRANCH: process.env.RENDER_GIT_BRANCH || null,
+    RENDER_GIT_COMMIT: process.env.RENDER_GIT_COMMIT || null,
+    uptime_seconds: Math.round(process.uptime())
   });
 });
+
 
 
 
