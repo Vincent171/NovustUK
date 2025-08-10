@@ -26,7 +26,7 @@ console.log("🔐 Keys at boot:", {
 });
 
 // use effectiveKey to init client
-const openai = new OpenAI({ apiKey: effectiveKey });
+//const openai = new OpenAI({ apiKey: effectiveKey });
 
 
 
@@ -97,8 +97,12 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, "docs")));
 
 // OpenAI
-const OpenAI = require("openai");
+/*const OpenAI = require("openai");
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+*/
+// OpenAI
+const OpenAI = require("openai");
+const openai = new OpenAI({ apiKey: effectiveKey });
 
 console.log("✅ Connected to both databases.");
 
