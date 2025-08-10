@@ -58,6 +58,7 @@ const allowed = new Set([
 });*/
 //end debug
 
+/*
 app.use(cors({
   origin: (origin, cb) => {
     // Allow server-to-server / curl / Postman (no Origin)
@@ -88,6 +89,63 @@ app.use(cors({
   },
   credentials: true
 }));
+*/
+
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);             // curl/postman/file://
+    if (origin === "null") return cb(null, true);   // some webviews
+    try {
+      const { hostname } = new URL(origin);
+      if (hostname === "localhost" || hostname === "127.0.0.1") return cb(null, true);
+      if (hostname.endsWith(".netlify.app")) return cb(null, true);
+      if (hostname === "novustuk.netlify.app") return cb(null, true);
+      // add custom domains here later, e.g.: if (hostname === "novust.com") return cb(null, true);
+      return cb(new Error("Not allowed by CORS"));
+    } catch {
+      return cb(new Error("Bad origin"));
+    }
+  },
+  credentials: false,               // you’re not using cookies; avoids stricter preflight
+  optionsSuccessStatus: 204,        // older browsers/Safari quirk
+  preflightContinue: false
+}));
+
+
+// --- CORS: explicit preflight handler (fixes Safari "Preflight response is not successful") ---
+const allowHeaders = "Content-Type, Authorization, X-Requested-With";
+const allowMethods = "GET,POST,OPTIONS";
+
+/*
+app.options("*", (req, res) => {
+  const origin = req.headers.origin || "*";
+  // Mirror the origin we already validated in cors() middleware
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", allowMethods);
+  res.setHeader("Access-Control-Allow-Headers", req.headers["access-control-request-headers"] || allowHeaders);
+  // If you ever send cookies, also set: Access-Control-Allow-Credentials: true
+  if (req.headers["access-control-request-method"]) {
+    res.setHeader("Access-Control-Allow-Methods", allowMethods);
+  }
+  return res.sendStatus(204);
+});
+*/
+
+// ✅ use regex catch‑all instead
+app.options(/.*/, (req, res) => {
+  const origin = req.headers.origin || "*";
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    req.headers["access-control-request-headers"] || "Content-Type, Authorization, X-Requested-With"
+  );
+  return res.sendStatus(204);
+});
+
+
 
 
 app.use(express.json());
