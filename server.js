@@ -6,6 +6,9 @@ const cors = require("cors");
 const path = require("path");
 const Database = require("better-sqlite3");
 require("dotenv").config();
+const k = process.env.OPENAI_API_KEY || "";
+console.log("🔐 OPENAI_API_KEY at boot:", k ? `${k.slice(0,8)}...${k.slice(-6)}` : "(none)");
+
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -126,6 +129,17 @@ app.get("/health/openai", async (_req, res) => {
     });
   }
 });
+
+app.get("/debug/env", (_req, res) => {
+  const k = process.env.OPENAI_API_KEY || "";
+  const masked = k ? `${k.slice(0,8)}...${k.slice(-6)}` : null;
+  res.json({
+    OPENAI_API_KEY: masked,
+    NOVUST_MODEL: process.env.NOVUST_MODEL || null,
+    NODE_ENV: process.env.NODE_ENV || null
+  });
+});
+
 
 
 // ── ASK (UK tax system prompt) ───────────────────────────────────────────────
