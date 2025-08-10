@@ -5,7 +5,9 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const Database = require("better-sqlite3");
-require("dotenv").config();
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config();
+}
 const k = process.env.OPENAI_API_KEY || "";
 console.log("🔐 OPENAI_API_KEY at boot:", k ? `${k.slice(0,8)}...${k.slice(-6)}` : "(none)");
 
