@@ -5,11 +5,31 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const Database = require("better-sqlite3");
-if (process.env.NODE_ENV !== "production") {
+/*if (process.env.NODE_ENV !== "production") {
   require("dotenv").config();
-}
-const k = process.env.OPENAI_API_KEY || "";
+  const k = process.env.OPENAI_API_KEY || "";
 console.log("🔐 OPENAI_API_KEY at boot:", k ? `${k.slice(0,8)}...${k.slice(-6)}` : "(none)");
+}*/
+const isProd = process.env.NODE_ENV === "production";
+if (!isProd) {
+  require("dotenv").config();
+  console.log("dotenv loaded (dev)");
+} else {
+  console.log("dotenv NOT loaded (prod)");
+}
+const effectiveKey = process.env.FORCE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+const mask = v => (v ? `${v.slice(0,8)}...${v.slice(-6)}` : "(none)");
+console.log("🔐 Keys at boot:", {
+  OPENAI_API_KEY: mask(process.env.OPENAI_API_KEY),
+  FORCE_OPENAI_API_KEY: mask(process.env.FORCE_OPENAI_API_KEY),
+  effective: mask(effectiveKey)
+});
+
+// use effectiveKey to init client
+const openai = new OpenAI({ apiKey: effectiveKey });
+
+
+
 
 
 const app = express();
@@ -132,6 +152,7 @@ app.get("/health/openai", async (_req, res) => {
   }
 });
 
+/*
 app.get("/debug/env", (_req, res) => {
   const k = process.env.OPENAI_API_KEY || "";
   const masked = k ? `${k.slice(0,8)}...${k.slice(-6)}` : null;
@@ -146,6 +167,20 @@ app.get("/debug/env", (_req, res) => {
     uptime_seconds: Math.round(process.uptime())
   });
 });
+*/
+app.get("/debug/env", (_req, res) => {
+  const mask = v => (v ? `${v.slice(0,8)}...${v.slice(-6)}` : null);
+  res.json({
+    OPENAI_API_KEY: mask(process.env.OPENAI_API_KEY),
+    FORCE_OPENAI_API_KEY: mask(process.env.FORCE_OPENAI_API_KEY),
+    NODE_ENV: process.env.NODE_ENV || null,
+    RENDER_SERVICE_NAME: process.env.RENDER_SERVICE_NAME || null,
+    RENDER_GIT_BRANCH: process.env.RENDER_GIT_BRANCH || null,
+    RENDER_GIT_COMMIT: process.env.RENDER_GIT_COMMIT || null,
+    uptime_seconds: Math.round(process.uptime())
+  });
+});
+
 
 
 
