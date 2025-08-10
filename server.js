@@ -190,7 +190,7 @@ app.get("/debug/env", (_req, res) => {
 
 
 // ── ASK (UK tax system prompt) ───────────────────────────────────────────────
-app.post("/api/ask", async (req, res) => {
+/*app.post("/api/ask", async (req, res) => {
   try {
     const { question } = req.body;
     if (!question) {
@@ -235,6 +235,65 @@ app.post("/api/ask", async (req, res) => {
     }
 
     if (!answer) answer = "Sorry — I couldn’t generate an answer.";
+    return res.json({ answer });
+
+  } catch (err) {
+    console.error("[ASK] Outer error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+*/
+app.post("/api/ask", async (req, res) => {
+  try {
+    const { question } = req.body;
+    if (!question) {
+      console.warn("[ASK] Missing question in request body");
+      return res.status(400).json({ error: "Question is required" });
+    }
+
+    console.log("[ASK] Received question:", question);
+
+    const messages = [
+      {
+        role: "system",
+        content: [
+          "You are a UK chartered tax adviser. Assume the user is in the United Kingdom.",
+          "Use HMRC terminology and current UK thresholds; give amounts in GBP (£).",
+          "Avoid US rules unless explicitly asked to compare.",
+          "Do NOT include any disclaimer text at the end of your response."
+        ].join(" ")
+      },
+      { role: "user", content: `UK context — ${question}` }
+    ];
+
+    console.log("[ASK] Sending to OpenAI with model:", process.env.NOVUST_MODEL || "gpt-4o-mini");
+
+    let answer;
+    try {
+      const completion = await openai.chat.completions.create({
+        model: process.env.NOVUST_MODEL || "gpt-4o-mini",
+        messages
+      });
+
+      answer = completion.choices?.[0]?.message?.content?.trim() || "";
+    } catch (e) {
+      console.error("[ASK] OpenAI API error:", {
+        status: e.status,
+        code: e.code,
+        msg: e.message,
+        data: e.response?.data
+      });
+      throw e;
+    }
+
+    // Remove ChatGPT's default disclaimer if present
+    answer = answer.replace(/\*\*Disclaimer\*\*:.*$/is, "").trim();
+
+    // Prepend your custom blurb
+    const intro = "Hi there, thanks for choosing me to help. Please note I am a working model for testing purposes only right now. Exciting news however, the team behind me are working hard to update me to provide a more tailored and individual response as an actual boring accountant in the future, well not that exciting but is to me.\n\nBelow is the answer you need:\n\n";
+    answer = intro + answer;
+
+    if (!answer.trim()) answer = "Sorry — I couldn’t generate an answer.";
     return res.json({ answer });
 
   } catch (err) {
