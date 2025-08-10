@@ -101,15 +101,43 @@ userDB.prepare(`
 `).run();
 
 // ── Health ──────────────────────────────────────────────────────────────────
+
 app.get("/health", (_req, res) => {
   return res.json({ ok: true, service: "novust-api" });
 });
+
+
+app.get("/health/openai", async (_req, res) => {
+  try {
+    const r = await openai.models.list();
+    res.json({ ok: true, count: r.data?.length || 0 });
+  } catch (e) {
+    console.error("OPENAI health fail:", {
+      status: e.status,
+      code: e.code,
+      msg: e.message,
+      data: e.response?.data,
+    });
+    res.status(500).json({
+      ok: false,
+      status: e.status,
+      code: e.code,
+      msg: e.message,
+    });
+  }
+});
+
 
 // ── ASK (UK tax system prompt) ───────────────────────────────────────────────
 app.post("/api/ask", async (req, res) => {
   try {
     const { question } = req.body;
-    if (!question) return res.status(400).json({ error: "Question is required" });
+    if (!question) {
+      console.warn("[ASK] Missing question in request body");
+      return res.status(400).json({ error: "Question is required" });
+    }
+
+    console.log("[ASK] Received question:", question);
 
     const messages = [
       {
@@ -118,27 +146,42 @@ app.post("/api/ask", async (req, res) => {
           "You are a UK chartered tax adviser. Assume the user is in the United Kingdom.",
           "Use HMRC terminology and current UK thresholds; give amounts in GBP (£).",
           "Avoid US rules unless explicitly asked to compare.",
-          "Include a short non‑advice disclaimer for complex cases."
+          "Include a short non-advice disclaimer for complex cases."
         ].join(" ")
       },
       { role: "user", content: `UK context — ${question}` }
     ];
 
-    const completion = await openai.chat.completions.create({
-      model: process.env.NOVUST_MODEL || "gpt-4o-mini",
-      messages
-    });
+    console.log("[ASK] Sending to OpenAI with model:", process.env.NOVUST_MODEL || "gpt-4o-mini");
 
-    const answer =
-      completion.choices?.[0]?.message?.content?.trim() ||
-      "Sorry — I couldn’t generate an answer.";
+    let answer;
+    try {
+      const completion = await openai.chat.completions.create({
+        model: process.env.NOVUST_MODEL || "gpt-4o-mini",
+        messages
+      });
 
+      answer = completion.choices?.[0]?.message?.content?.trim();
+      console.log("[ASK] OpenAI answer length:", answer?.length || 0);
+    } catch (e) {
+      console.error("[ASK] OpenAI API error:", {
+        status: e.status,
+        code: e.code,
+        msg: e.message,
+        data: e.response?.data
+      });
+      throw e; // bubble to outer catch
+    }
+
+    if (!answer) answer = "Sorry — I couldn’t generate an answer.";
     return res.json({ answer });
+
   } catch (err) {
-    console.error("ask error:", err);
+    console.error("[ASK] Outer error:", err);
     return res.status(500).json({ error: "Server error" });
   }
 });
+
 
 // Optional alias so older frontend hitting /ask still works:
 app.post("/ask", (req, res) => {
