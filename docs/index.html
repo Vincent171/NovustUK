@@ -5,14 +5,50 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>UK AI Tax Assistant</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    /* minimal DOB styles so it looks tidy on mobile without editing style.css */
+    .sr-only { position: absolute; left: -9999px; }
+    .dob-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1.3fr; /* D M Y */
+      gap: 8px;
+      margin: 6px 0;
+    }
+    .dob-row select {
+      width: 100%;
+      padding: 8px;
+      font-size: 16px; /* prevents iOS zoom */
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+  </style>
 </head>
 
-
-
-
-
 <body>
+<!--NEW ONE BELOW
+  <div id="auth-header" class="auth-header">
+  <span id="login-status" class="hidden"></span>
+
+  <button id="login-btn" class="auth-btn" onclick="openModal('login')">Login</button>
+
+  <div id="dropdown-container" class="dropdown hidden">
+    <button class="dropdown-toggle"> ☰ </button>
+    <div class="dropdown-menu">
+      <button onclick="openModal('history')">Question History</button>
+      <button onclick="openModal('account')">My Account</button>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+</div>
+-->
+
 <div id="auth-header" class="auth-header">
+  <!-- Latest News Button -->
+  <button id="news-btn" class="auth-btn" onclick="openNews()">Latest news</button>
+
   <span id="login-status" class="hidden"></span>
 
   <button id="login-btn" class="auth-btn" onclick="openModal('login')">Login</button>
@@ -28,7 +64,6 @@
 </div>
 
 
-
 <!-- Main Container -->
 <div class="container">
   <div id="overlay">
@@ -36,17 +71,13 @@
     <p id="live-timer">⏱️ 0.00s</p>
   </div>
 
-
-
-
-
   <div class="header">
     <img src="logo.png" alt="Novust Logo" class="logo-crop" />
     <p class="subtext">Here to help as your AI Accountant. Ask away.</p>
-  </div> 
+  </div>
 
   <textarea id="questionInput" rows="5" placeholder="e.g. How much tax will I pay on £30k income?
-Can I claim entertianing expenses off my corporation tax?
+Can I claim entertaining expenses off my corporation tax?
 What is the BIK on an electric car?"></textarea>
 
   <div style="text-align: center;">
@@ -61,9 +92,20 @@ What is the BIK on an electric car?"></textarea>
     <p id="timer"></p>
   </div>
 
-  <div class="footer-links">
+
+  
+    <div class="footer-links">
     <button class="footer-btn" onclick="openModal('privacy')">Privacy Policy</button>
     <button class="footer-btn" onclick="openModal('terms')">T&Cs</button>
+  </div>
+</div>
+
+  <!--news links below-->
+<div id="news-modal" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h3>Latest news</h3>
+    <ul id="news-list"></ul>
+    <button class="modal-close" onclick="closeModal()">Close</button>
   </div>
 </div>
 
@@ -76,14 +118,23 @@ What is the BIK on an electric car?"></textarea>
       <input type="text" id="fname" placeholder="First Name" required><br>
       <input type="text" id="lname" placeholder="Last Name" required><br>
       <input type="email" id="email" placeholder="Email" required><br>
-      <input type="date" id="dob" required><br>
+
+      <!-- DOB selects (mobile-safe) -->
+      <div class="dob-row">
+        <label for="dob-day" class="sr-only">Day</label>
+        <select id="dob-day" required></select>
+        <label for="dob-month" class="sr-only">Month</label>
+        <select id="dob-month" required></select>
+        <label for="dob-year" class="sr-only">Year</label>
+        <select id="dob-year" required></select>
+      </div>
+
       <input type="password" id="password" placeholder="Password" required><br>
       <button type="submit">Sign Up</button>
     </form>
     <p class="footer-link">
-  <a href="#" onclick="skipSignup()">Continue without saving my replies</a>
-</p>
-
+      <a href="#" onclick="skipSignup()">Continue without saving my replies</a>
+    </p>
   </div>
 </div>
 
@@ -92,53 +143,45 @@ What is the BIK on an electric car?"></textarea>
   <div class="modal-content" onclick="event.stopPropagation()">
     <div id="modal-text" class="modal-text"></div>
     <p class="footer-link">
-  <a href="#" onclick="closeModal()">Close</a>
-</p>
-
+      <a href="#" onclick="closeModal()">Close</a>
+    </p>
   </div>
 </div>
-
 
 <!-- Login Modal -->
 <div id="login-modal" class="modal-overlay" onclick="closeModal(event)">
   <div class="modal-content" onclick="event.stopPropagation()">
     <h3>Login to Your Account to View Question History</h3>
-<form id="login-form">
-  <input type="email" id="login-email" placeholder="Email" required><br>
-  <input type="password" id="login-password" placeholder="Password" required><br>
-  <button type="submit">Login</button>
-</form>
-<p id="login-message" style="color: red;"></p>
-<p class="switch-modal-text">
-  Not registered? <a href="#" onclick="switchToSignup()">Sign up here</a>
-</p>
-
+    <form id="login-form">
+      <input type="email" id="login-email" placeholder="Email" required><br>
+      <input type="password" id="login-password" placeholder="Password" required><br>
+      <button type="submit">Login</button>
+    </form>
+    <p id="login-message" style="color: red;"></p>
+    <p class="switch-modal-text">
+      Not registered? <a href="#" onclick="switchToSignup()">Sign up here</a>
+    </p>
     <p class="footer-link">
-  <a href="#" onclick="closeModal()">Close</a>
-</p>
-
+      <a href="#" onclick="closeModal()">Close</a>
+    </p>
   </div>
 </div>
 
-<!--Myaccount and account history modals-->
 <!-- Account Modal -->
 <div id="account-modal" class="modal-overlay" onclick="closeModal(event)">
   <div class="modal-content" onclick="event.stopPropagation()">
     <h3>Update Your Email Or Password</h3>
-<form id="email-update-form">
-  <input type="email" id="current-email" placeholder="Current email" required><br>
-  <input type="password" id="current-password" placeholder="Current password" required><br>
-  <input type="email" id="new-email" placeholder="New email (optional)"><br>
-  <input type="password" id="new-password" placeholder="New password (optional)"><br>
-  <button type="submit">Update Details</button>
-</form>
-<p id="update-status"></p>
-
+    <form id="email-update-form">
+      <input type="email" id="current-email" placeholder="Current email" required><br>
+      <input type="password" id="current-password" placeholder="Current password" required><br>
+      <input type="email" id="new-email" placeholder="New email (optional)"><br>
+      <input type="password" id="new-password" placeholder="New password (optional)"><br>
+      <button type="submit">Update Details</button>
+    </form>
+    <p id="update-status"></p>
     <button class="modal-close" onclick="closeModal()">Close</button>
   </div>
 </div>
-
-
 
 <!-- History Modal -->
 <div id="history-modal" class="modal-overlay" onclick="closeModal(event)">
@@ -158,18 +201,13 @@ What is the BIK on an electric car?"></textarea>
   </div>
 </div>
 
-
-
 <script>
 let useAPI = true;
 let hasSignedUp = false;
 let questionCount = 0;
 let timerInterval, timeoutHandle;
 let responseTimes = [];
-//BELOW IS FOR TIMER
 const icons = ["🧾", "💷", "💼"];
-let iconIndex = 0;
-const start = Date.now();
 
 // --- Environment-aware API base ---
 const isLocalPage =
@@ -178,12 +216,10 @@ const isLocalPage =
   location.protocol === "file:";
 
 const API_BASE = isLocalPage
-  ? "http://localhost:3000"         // your local Node/Express port
-  : "https://novustuk.onrender.com"; // production API on Render
+  ? "http://localhost:3000"
+  : "https://novustuk.onrender.com";
 
-
-
-/*NEW ASKQUESTION*/
+/* ASK QUESTION */
 function askQuestion() {
   try {
     const question = document.getElementById("questionInput").value.trim();
@@ -209,17 +245,20 @@ function askQuestion() {
     responseBox.textContent = "";
     document.getElementById("answer-box").style.display = "block";
     overlay.style.display = "flex";
-    let start = Date.now();
+    const start = Date.now();
 
-    // Timer icon cycling
+    // Single timer interval (fixed)
+    let tick = 0;
+    clearInterval(timerInterval); // safety
     timerInterval = setInterval(() => {
       const elapsed = ((Date.now() - start) / 1000).toFixed(2);
-      const icon = icons[iconIndex % icons.length];
+      const icon = icons[tick % icons.length];
       liveTimer.textContent = `${icon} ${elapsed}s`;
-    }, 100);
+      tick++;
+    }, 500);
 
-    setInterval(() => iconIndex++, 500);
-
+    // Safety timeout (20s)
+    clearTimeout(timeoutHandle);
     timeoutHandle = setTimeout(() => {
       clearInterval(timerInterval);
       overlay.style.display = "none";
@@ -228,7 +267,7 @@ function askQuestion() {
 
     document.getElementById("askBtn").textContent = "Ask again";
 
-    // 🔗 Send question to backend
+    // Send question
     fetch(`${API_BASE}/api/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -243,9 +282,8 @@ function askQuestion() {
       const elapsed = ((Date.now() - start) / 1000).toFixed(2);
       responseTimes.push(elapsed);
       responseBox.textContent = data.answer;
-      console.log("🟢 Answer received:", data.answer);
 
-      // ⏺️ Log question and answer (optional)
+      // Log Q&A
       fetch(`${API_BASE}/log`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -264,6 +302,7 @@ function askQuestion() {
     .catch(err => {
       console.error("❌ API call failed:", err);
       clearInterval(timerInterval);
+      clearTimeout(timeoutHandle);
       overlay.style.display = "none";
       responseBox.textContent = "Failed to get a response. Please try again later.";
     });
@@ -272,7 +311,6 @@ function askQuestion() {
     console.error("🚨 Error in askQuestion():", error);
   }
 }
-
 
 function showSignup() {
   document.getElementById("signup-modal").style.display = "flex";
@@ -304,23 +342,17 @@ function updateAuthButtons() {
   if (loggedIn) {
     loginBtn.classList.add("hidden");
     dropdown.classList.remove("hidden");
-
     const name = localStorage.getItem("loggedInName") || email;
-loginStatus.textContent = `✅ Logged in as ${name}`;
-
+    loginStatus.textContent = `✅ Logged in as ${name}`;
     loginStatus.classList.remove("hidden");
   } else {
     loginBtn.classList.remove("hidden");
     dropdown.classList.add("hidden");
-
     loginStatus.textContent = "";
     loginStatus.classList.add("hidden");
   }
   console.log("🔄 updateAuthButtons running. Logged in:", loggedIn);
-
 }
-
-
 
 function copyAnswer() {
   const answerText = document.getElementById("answer-text").textContent;
@@ -335,62 +367,38 @@ function copyAnswer() {
   });
 }
 
-/* OLD 
-function openModal(type) {
-  closeModal(); // close any open modal
-  const modal = document.getElementById(`${type}-modal`);
-  if (modal) {
-    modal.style.display = "flex";
-    if (type === "history") loadHistory(); // load Q&A table when history opens
-  }
-}
-*/
-
 function openModal(type) {
   closeModal(); // close any open modal
 
   if (type === "privacy") {
     document.getElementById("modal-text").innerHTML = `
       <h3>Privacy Policy</h3>
-<p>Last updated: July 2025</p>
-<p>
-At <strong>Novust Ltd</strong>, we take your privacy seriously. This Privacy Policy outlines how we collect, use, and protect your personal information when you use our UK AI Tax Assistant platform.
-</p>
-
-<h4>1. Information We Collect</h4>
-<ul>
-  <li>Full name, email address, and date of birth during sign-up.</li>
-  <li>Questions you ask, and the corresponding AI-generated responses.</li>
-  <li>Basic usage data (e.g. browser, device type) for analytics and support.</li>
-</ul>
-
-<h4>2. How We Use Your Data</h4>
-<ul>
-  <li>To provide personalized tax responses and save your history.</li>
-  <li>To allow you to log in and manage your account.</li>
-  <li>To improve the accuracy and quality of our AI responses.</li>
-</ul>
-
-<h4>3. Data Security</h4>
-<p>
-Your data is stored securely and passwords are encrypted. We do not sell your information to third parties.
-</p>
-
-<h4>4. Data Retention</h4>
-<p>
-We retain your question and account data for as long as your account is active. You may request deletion by contacting us.
-</p>
-
-<h4>5. Your Rights</h4>
-<ul>
-  <li>Access or update your information via "My Account".</li>
-  <li>Request account or data deletion.</li>
-</ul>
-
-<p>
-For any privacy-related concerns, contact <a href="mailto:privacy@novust.com">privacy@novust.com</a>.
-</p>
-
+      <p>Last updated: July 2025</p>
+      <p>
+      At <strong>Novust Ltd</strong>, we take your privacy seriously. This Privacy Policy outlines how we collect, use, and protect your personal information when you use our UK AI Tax Assistant platform.
+      </p>
+      <h4>1. Information We Collect</h4>
+      <ul>
+        <li>Full name, email address, and date of birth during sign-up.</li>
+        <li>Questions you ask, and the corresponding AI-generated responses.</li>
+        <li>Basic usage data (e.g. browser, device type) for analytics and support.</li>
+      </ul>
+      <h4>2. How We Use Your Data</h4>
+      <ul>
+        <li>To provide personalized tax responses and save your history.</li>
+        <li>To allow you to log in and manage your account.</li>
+        <li>To improve the accuracy and quality of our AI responses.</li>
+      </ul>
+      <h4>3. Data Security</h4>
+      <p>Your data is stored securely and passwords are encrypted. We do not sell your information to third parties.</p>
+      <h4>4. Data Retention</h4>
+      <p>We retain your question and account data for as long as your account is active. You may request deletion by contacting us.</p>
+      <h4>5. Your Rights</h4>
+      <ul>
+        <li>Access or update your information via "My Account".</li>
+        <li>Request account or data deletion.</li>
+      </ul>
+      <p>For any privacy-related concerns, contact <a href="mailto:privacy@novust.com">privacy@novust.com</a>.</p>
     `;
     document.getElementById("modal-overlay").style.display = "flex";
     return;
@@ -399,62 +407,35 @@ For any privacy-related concerns, contact <a href="mailto:privacy@novust.com">pr
   if (type === "terms") {
     document.getElementById("modal-text").innerHTML = `
       <h3>Terms & Conditions</h3>
-<p>Last updated: July 2025</p>
-<p>
-By using the services of <strong>Novust Ltd</strong>, you agree to the following terms:
-</p>
-
-<h4>1. Purpose of the Service</h4>
-<p>
-This site provides AI-generated tax guidance and is not a substitute for formal financial or legal advice. Always consult a qualified accountant or HMRC for complex cases.
-</p>
-
-<h4>2. Account Usage</h4>
-<ul>
-  <li>One account per person. You are responsible for keeping your login credentials secure.</li>
-  <li>Do not use the service for illegal or abusive purposes.</li>
-</ul>
-
-<h4>3. Accuracy of Information</h4>
-<p>
-While we strive to provide accurate guidance, Novust Ltd is not liable for any actions taken based on AI responses.
-</p>
-
-<h4>4. Service Availability</h4>
-<p>
-We may update, modify, or suspend services without notice for maintenance, security, or feature improvements.
-</p>
-
-<h4>5. Intellectual Property</h4>
-<p>
-All content and code are the property of Novust Ltd. You may not copy, reproduce, or reuse without written permission.
-</p>
-
-<h4>6. Termination</h4>
-<p>
-We reserve the right to suspend or terminate your account at our discretion for breach of these terms.
-</p>
-
-<p>
-For questions, contact <a href="mailto:support@novust.com">support@novust.com</a>.
-</p>
-
+      <p>Last updated: July 2025</p>
+      <p>By using the services of <strong>Novust Ltd</strong>, you agree to the following terms:</p>
+      <h4>1. Purpose of the Service</h4>
+      <p>This site provides AI-generated tax guidance and is not a substitute for formal financial or legal advice. Always consult a qualified accountant or HMRC for complex cases.</p>
+      <h4>2. Account Usage</h4>
+      <ul>
+        <li>One account per person. You are responsible for keeping your login credentials secure.</li>
+        <li>Do not use the service for illegal or abusive purposes.</li>
+      </ul>
+      <h4>3. Accuracy of Information</h4>
+      <p>While we strive to provide accurate guidance, Novust Ltd is not liable for any actions taken based on AI responses.</p>
+      <h4>4. Service Availability</h4>
+      <p>We may update, modify, or suspend services without notice for maintenance, security, or feature improvements.</p>
+      <h4>5. Intellectual Property</h4>
+      <p>All content and code are the property of Novust Ltd. You may not copy, reproduce, or reuse without written permission.</p>
+      <h4>6. Termination</h4>
+      <p>We reserve the right to suspend or terminate your account at our discretion for breach of these terms.</p>
+      <p>For questions, contact <a href="mailto:support@novust.com">support@novust.com</a>.</p>
     `;
     document.getElementById("modal-overlay").style.display = "flex";
     return;
   }
 
-  // ✅ For account/history/login/etc.
   const modal = document.getElementById(`${type}-modal`);
   if (modal) {
     modal.style.display = "flex";
-    if (type === "history") loadHistory(); // reload table
+    if (type === "history") loadHistory();
   }
 }
-
-
-
-
 
 function closeModal(event) {
   const modals = document.querySelectorAll(".modal-overlay");
@@ -463,17 +444,47 @@ function closeModal(event) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  // 🔁 Signup handling
+  // Populate DOB selects
+  (function initDOB(){
+    const daySel = document.getElementById("dob-day");
+    const monthSel = document.getElementById("dob-month");
+    const yearSel = document.getElementById("dob-year");
+    if (!daySel || !monthSel || !yearSel) return;
+
+    daySel.innerHTML = '<option value="">Day</option>' +
+      Array.from({length:31},(_,i)=>`<option value="${String(i+1).padStart(2,'0')}">${i+1}</option>`).join('');
+
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    monthSel.innerHTML = '<option value="">Month</option>' +
+      months.map((m,i)=>`<option value="${String(i+1).padStart(2,'0')}">${m}</option>`).join('');
+
+    const thisYear = new Date().getFullYear();
+    const maxY = thisYear - 16, minY = thisYear - 100;
+    let yOpts = '<option value="">Year</option>';
+    for (let y = maxY; y >= minY; y--) yOpts += `<option value="${y}">${y}</option>`;
+    yearSel.innerHTML = yOpts;
+  })();
+
+  // Signup handling
   const signupForm = document.getElementById("signup-form");
   if (signupForm) {
     signupForm.addEventListener("submit", (e) => {
       e.preventDefault();
       const email = document.getElementById("email").value;
+
+      const dob = (() => {
+        const d = document.getElementById("dob-day").value;
+        const m = document.getElementById("dob-month").value;
+        const y = document.getElementById("dob-year").value;
+        if (!d || !m || !y) return "";
+        return `${y}-${m}-${d}`; // ISO yyyy-mm-dd
+      })();
+
       const userData = {
         fname: document.getElementById("fname").value,
         lname: document.getElementById("lname").value,
         email,
-        dob: document.getElementById("dob").value,
+        dob,
         password: document.getElementById("password").value,
       };
 
@@ -493,26 +504,25 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .catch((err) => console.error("❌ Signup error:", err));
     });
-    
-    // Prewarm ChatGPT API on first load
-if (useAPI && !sessionStorage.getItem("apiWarmedUp")) {
-  console.log("⚡ Prewarming ChatGPT API...");
-  fetch(`${API_BASE}/api/ask`, {  
-  method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question: "Hello" }),
-  })
-  .then(res => res.json())
-  .then(() => {
-    console.log("✅ API warmed up.");
-    sessionStorage.setItem("apiWarmedUp", "true");
-  })
-  .catch(err => console.warn("⚠️ Prewarm failed:", err));
-}
 
+    // Prewarm API
+    if (useAPI && !sessionStorage.getItem("apiWarmedUp")) {
+      console.log("⚡ Prewarming ChatGPT API...");
+      fetch(`${API_BASE}/api/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: "Hello" }),
+      })
+      .then(res => res.json())
+      .then(() => {
+        console.log("✅ API warmed up.");
+        sessionStorage.setItem("apiWarmedUp", "true");
+      })
+      .catch(err => console.warn("⚠️ Prewarm failed:", err));
+    }
   }
 
-  // 🔁 Login handling
+  // Login handling
   const loginForm = document.getElementById("login-form");
   if (loginForm) {
     loginForm.addEventListener("submit", function (e) {
@@ -527,34 +537,44 @@ if (useAPI && !sessionStorage.getItem("apiWarmedUp")) {
       })
         .then((res) => res.json())
         .then((data) => {
-  if (data.success) {
-    localStorage.setItem("loggedInEmail", email);
-    localStorage.setItem("loggedInName", data.fname); // 👈 ADD THIS
-    closeModal();
-    updateAuthButtons();
-  } else {
-    document.getElementById("login-message").textContent =
-      "Invalid email or password.";
-  }
-})
-
+          if (data.success) {
+            localStorage.setItem("loggedInEmail", email);
+            localStorage.setItem("loggedInName", data.fname);
+            closeModal();
+            updateAuthButtons();
+          } else {
+            document.getElementById("login-message").textContent = "Invalid email or password.";
+          }
+        })
         .catch((err) => {
           console.error("❌ Login error:", err);
         });
     });
   }
 
-  // ✅ Always update buttons on load
+  // Dropdown click/tap toggle (mobile-friendly)
+  const ddToggle = document.querySelector('.dropdown-toggle');
+  const ddMenu = document.querySelector('.dropdown-menu');
+  ddToggle?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!ddMenu) return;
+    ddMenu.style.display = (ddMenu.style.display === 'flex') ? 'none' : 'flex';
+  });
+  document.addEventListener('click', () => {
+    if (ddMenu) ddMenu.style.display = 'none';
+  });
+
+  // Always update buttons on load
   updateAuthButtons();
 });
 
 //outside DOMContentLoad so global scope
-  function switchToSignup() {
-  closeModal(); // Close login modal
+function switchToSignup() {
+  closeModal();
   document.getElementById("signup-modal").style.display = "flex";
 }
 
-// 🔄 Account Form Handler
+// Account Form Handler
 const emailForm = document.getElementById("email-update-form");
 if (emailForm) {
   emailForm.addEventListener("submit", function (e) {
@@ -582,21 +602,19 @@ if (emailForm) {
 
       if (msg.includes("success")) {
         status.style.color = "green";
-if (newEmail) {
-  localStorage.setItem("loggedInEmail", newEmail);
-}
-if (localStorage.getItem("loggedInName") && newEmail) {
-  // Force a refetch of user info if needed
-  fetch(`${API_BASE}/user-info?email=${encodeURIComponent(newEmail)}`)
-    .then(res => res.json())
-    .then(data => {
-      if (data.fname) {
-        localStorage.setItem("loggedInName", data.fname);
-        updateAuthButtons(); // ✅ Refresh UI
-      }
-    });
-}
-
+        if (newEmail) {
+          localStorage.setItem("loggedInEmail", newEmail);
+        }
+        if (localStorage.getItem("loggedInName") && newEmail) {
+          fetch(`${API_BASE}/user-info?email=${encodeURIComponent(newEmail)}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.fname) {
+                localStorage.setItem("loggedInName", data.fname);
+                updateAuthButtons();
+              }
+            });
+        }
       } else {
         status.style.color = "red";
       }
@@ -604,8 +622,7 @@ if (localStorage.getItem("loggedInName") && newEmail) {
   });
 }
 
-
-// 🔄 History Table Loader
+// History Table Loader
 function loadHistory() {
   const email = localStorage.getItem("loggedInEmail");
   if (!email) return;
@@ -622,7 +639,24 @@ function loadHistory() {
     });
 }
 
-
+//NEWS LINKS
+async function openNews() {
+  const ul = document.getElementById('news-list');
+  ul.innerHTML = '<li>Loading…</li>';
+  document.getElementById('news-modal').style.display = 'flex';
+  try {
+    const res = await fetch(`${API_BASE}/news`);
+    const items = await res.json();
+    const fmt = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '';
+    ul.innerHTML = items.map(i => {
+      const date = fmt(i.date);
+      const source = i.source ? ` (${i.source})` : '';
+      return `<li><a href="${i.link}" target="_blank" rel="noopener">${i.title}</a>${source} — ${date}</li>`;
+    }).join('');
+  } catch {
+    ul.innerHTML = '<li>Could not load news right now.</li>';
+  }
+}
 
 
 </script>

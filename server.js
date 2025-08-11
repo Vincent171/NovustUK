@@ -1,16 +1,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // server.js (Novust) — cleaned + fixed
+// model selector rows 200 & 205
 // ─────────────────────────────────────────────────────────────────────────────
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const Database = require("better-sqlite3");
-/*if (process.env.NODE_ENV !== "production") {
-  require("dotenv").config();
-  const k = process.env.OPENAI_API_KEY || "";
-console.log("🔐 OPENAI_API_KEY at boot:", k ? `${k.slice(0,8)}...${k.slice(-6)}` : "(none)");
-}*/
 const isProd = process.env.NODE_ENV === "production";
+const RSSParser = require('rss-parser');
+const rss = new RSSParser();
+
 if (!isProd) {
   require("dotenv").config();
   console.log("dotenv loaded (dev)");
@@ -25,12 +24,9 @@ console.log("🔐 Keys at boot:", {
   effective: mask(effectiveKey)
 });
 
+
 // use effectiveKey to init client
 //const openai = new OpenAI({ apiKey: effectiveKey });
-
-
-
-
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -51,6 +47,7 @@ const allowed = new Set([
   // add your custom domain here when ready, e.g. "https://novust.com"
 ]);
 
+
 //debug tool
 /*app.use((req, res, next) => {
   console.log("CORS check — Origin:", req.headers.origin, " Referer:", req.headers.referer);
@@ -58,38 +55,6 @@ const allowed = new Set([
 });*/
 //end debug
 
-/*
-app.use(cors({
-  origin: (origin, cb) => {
-    // Allow server-to-server / curl / Postman (no Origin)
-    if (!origin) return cb(null, true);
-
-    // Allow local file:// (some browsers send "null")
-    if (origin === "null") return cb(null, true);
-
-    try {
-      const { hostname } = new URL(origin);
-
-      // Allow any localhost or 127.0.0.1 (any port)
-      if (hostname === "localhost" || hostname === "127.0.0.1") {
-        return cb(null, true);
-      }
-
-      // Allow any Netlify preview or main domain
-      if (hostname.endsWith(".netlify.app")) return cb(null, true);
-      if (hostname === "novustuk.netlify.app") return cb(null, true);
-
-      // Optional: add your custom prod domain here later
-      // if (hostname === "novust.com") return cb(null, true);
-
-      return cb(new Error("Not allowed by CORS"));
-    } catch {
-      return cb(new Error("Bad origin"));
-    }
-  },
-  credentials: true
-}));
-*/
 
 app.use(cors({
   origin: (origin, cb) => {
@@ -116,21 +81,6 @@ app.use(cors({
 const allowHeaders = "Content-Type, Authorization, X-Requested-With";
 const allowMethods = "GET,POST,OPTIONS";
 
-/*
-app.options("*", (req, res) => {
-  const origin = req.headers.origin || "*";
-  // Mirror the origin we already validated in cors() middleware
-  res.setHeader("Access-Control-Allow-Origin", origin);
-  res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", allowMethods);
-  res.setHeader("Access-Control-Allow-Headers", req.headers["access-control-request-headers"] || allowHeaders);
-  // If you ever send cookies, also set: Access-Control-Allow-Credentials: true
-  if (req.headers["access-control-request-method"]) {
-    res.setHeader("Access-Control-Allow-Methods", allowMethods);
-  }
-  return res.sendStatus(204);
-});
-*/
 
 // ✅ use regex catch‑all instead
 app.options(/.*/, (req, res) => {
@@ -146,19 +96,12 @@ app.options(/.*/, (req, res) => {
 });
 
 
-
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Static (optional; keep after parsers)
 app.use(express.static(path.join(__dirname, "docs")));
 
-// OpenAI
-/*const OpenAI = require("openai");
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-*/
-// OpenAI
 const OpenAI = require("openai");
 const openai = new OpenAI({ apiKey: effectiveKey });
 
@@ -214,22 +157,7 @@ app.get("/health/openai", async (_req, res) => {
   }
 });
 
-/*
-app.get("/debug/env", (_req, res) => {
-  const k = process.env.OPENAI_API_KEY || "";
-  const masked = k ? `${k.slice(0,8)}...${k.slice(-6)}` : null;
-  res.json({
-    OPENAI_API_KEY: masked,
-    NOVUST_MODEL: process.env.NOVUST_MODEL || null,
-    NODE_ENV: process.env.NODE_ENV || null,
-    RENDER_SERVICE_NAME: process.env.RENDER_SERVICE_NAME || null,
-    RENDER_INSTANCE_ID: process.env.RENDER_INSTANCE_ID || null,
-    RENDER_GIT_BRANCH: process.env.RENDER_GIT_BRANCH || null,
-    RENDER_GIT_COMMIT: process.env.RENDER_GIT_COMMIT || null,
-    uptime_seconds: Math.round(process.uptime())
-  });
-});
-*/
+
 app.get("/debug/env", (_req, res) => {
   const mask = v => (v ? `${v.slice(0,8)}...${v.slice(-6)}` : null);
   res.json({
@@ -244,63 +172,6 @@ app.get("/debug/env", (_req, res) => {
 });
 
 
-
-
-
-// ── ASK (UK tax system prompt) ───────────────────────────────────────────────
-/*app.post("/api/ask", async (req, res) => {
-  try {
-    const { question } = req.body;
-    if (!question) {
-      console.warn("[ASK] Missing question in request body");
-      return res.status(400).json({ error: "Question is required" });
-    }
-
-    console.log("[ASK] Received question:", question);
-
-    const messages = [
-      {
-        role: "system",
-        content: [
-          "You are a UK chartered tax adviser. Assume the user is in the United Kingdom.",
-          "Use HMRC terminology and current UK thresholds; give amounts in GBP (£).",
-          "Avoid US rules unless explicitly asked to compare.",
-          "Include a short non-advice disclaimer for complex cases."
-        ].join(" ")
-      },
-      { role: "user", content: `UK context — ${question}` }
-    ];
-
-    console.log("[ASK] Sending to OpenAI with model:", process.env.NOVUST_MODEL || "gpt-4o-mini");
-
-    let answer;
-    try {
-      const completion = await openai.chat.completions.create({
-        model: process.env.NOVUST_MODEL || "gpt-4o-mini",
-        messages
-      });
-
-      answer = completion.choices?.[0]?.message?.content?.trim();
-      console.log("[ASK] OpenAI answer length:", answer?.length || 0);
-    } catch (e) {
-      console.error("[ASK] OpenAI API error:", {
-        status: e.status,
-        code: e.code,
-        msg: e.message,
-        data: e.response?.data
-      });
-      throw e; // bubble to outer catch
-    }
-
-    if (!answer) answer = "Sorry — I couldn’t generate an answer.";
-    return res.json({ answer });
-
-  } catch (err) {
-    console.error("[ASK] Outer error:", err);
-    return res.status(500).json({ error: "Server error" });
-  }
-});
-*/
 app.post("/api/ask", async (req, res) => {
   try {
     const { question } = req.body;
@@ -311,25 +182,34 @@ app.post("/api/ask", async (req, res) => {
 
     console.log("[ASK] Received question:", question);
 
-    const messages = [
-      {
-        role: "system",
-        content: [
-          "You are a UK chartered tax adviser. Assume the user is in the United Kingdom.",
-          "Use HMRC terminology and current UK thresholds; give amounts in GBP (£).",
-          "Avoid US rules unless explicitly asked to compare.",
-          "Do NOT include any disclaimer text at the end of your response."
-        ].join(" ")
-      },
-      { role: "user", content: `UK context — ${question}` }
-    ];
+   const system = `
+You are a UK chartered tax adviser for tax year 2025/26 unless the user specifies another year.
+- Always use current UK thresholds/rates for 2025/26; amounts in GBP (£).
+- If the question is missing a total income figure, state the assumption you're making.
+- Prefer HMRC terminology. Avoid US rules unless a comparison is requested.
+- Respond conversationally, like a friendly accountant.
+- Format answers as:
+  1) Short answer (1–20 lines),
+  2) Calculation / reasoning steps (bullets with numbers),
+  3) What to watch out for,
+  4) Sources (GOV.UK links).
+- End with: "Please note your total income impacts the level of tax on each income stream, please ensure you provide this for a more accurate response".
+Do NOT add generic AI disclaimers.
+`;
 
-    console.log("[ASK] Sending to OpenAI with model:", process.env.NOVUST_MODEL || "gpt-4o-mini");
+const messages = [
+  { role: "system", content: system },
+  { role: "user", content: `UK context — ${question}` }
+];
+
+
+    //MODEL SELECTOR
+    console.log("[ASK] Sending to OpenAI with model:", process.env.NOVUST_MODEL || "gpt-4o-mini"); //MODELSELECTOR HERE
 
     let answer;
     try {
       const completion = await openai.chat.completions.create({
-        model: process.env.NOVUST_MODEL || "gpt-4o-mini",
+        model: process.env.NOVUST_MODEL || "gpt-4o-mini", //MODELSELECTOR HERE
         messages
       });
 
@@ -367,6 +247,7 @@ app.post("/ask", (req, res) => {
   return app._router.handle(req, res);
 });
 
+
 // ── LOG Q&A (store into questions table) ─────────────────────────────────────
 app.post("/log", (req, res) => {
   try {
@@ -385,6 +266,7 @@ app.post("/log", (req, res) => {
     return res.status(500).json({ error: "Failed to save log" });
   }
 });
+
 
 // ── SIGNUP (use userDB) ─────────────────────────────────────────────────────
 app.post("/signup", (req, res) => {
@@ -416,6 +298,7 @@ app.post("/signup", (req, res) => {
   }
 });
 
+
 // ── LOGIN (use userDB) ──────────────────────────────────────────────────────
 app.post("/login", (req, res) => {
   try {
@@ -441,6 +324,7 @@ app.post("/login", (req, res) => {
     return res.status(500).json({ error: "Server error" });
   }
 });
+
 
 // ── UPDATE DETAILS (use userDB, also update questions.email) ─────────────────
 app.post("/update-details", (req, res) => {
@@ -489,6 +373,7 @@ app.post("/update-details", (req, res) => {
     return res.status(500).send("Server error");
   }
 });
+
 
 // ── HISTORY (read from questions table) ──────────────────────────────────────
 app.get("/history", (req, res) => {
@@ -541,4 +426,31 @@ app.use((err, req, res, next) => {
 // ── Start ───────────────────────────────────────────────────────────────────
 app.listen(port, () => {
   console.log(`🚀 Server running on http://localhost:${port}`);
+});
+
+// ── NEWS LINKS ──────────────────────────────────────────────────────────────
+
+app.get('/news', async (req, res) => {
+  try {
+    const feeds = [
+      'https://www.gov.uk/government/organisations/hm-revenue-customs.atom',
+      'https://www.icaew.com/rss',                 // hub page; you can swap for specific feeds you like
+      'https://www.accountingweb.co.uk/rss',
+      'https://www.gov.uk/government/organisations/hm-treasury.atom'
+    ];
+    const all = [];
+    for (const url of feeds) {
+      try {
+        const f = await rss.parseURL(url);
+        (f.items || []).slice(0, 5).forEach(i => {
+          all.push({ title: i.title, link: i.link, date: i.isoDate || i.pubDate, source: f.title });
+        });
+      } catch (e) { /* skip failing feed */ }
+    }
+    // sort newest first
+    all.sort((a,b)=> new Date(b.date||0)-new Date(a.date||0));
+    res.json(all.slice(0, 12));
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to fetch news' });
+  }
 });

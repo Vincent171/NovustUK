@@ -292,72 +292,11 @@ button:hover {
 }
 
 
-
-
-
-
 #login-status:hover {
   background-color: #e6e6e6;
 }
 
 
-/* Show only when it has text 
-#login-status.visible {
-  display: inline-block;
-}*/
-
-
-
-
-/* ✅ Mobile Responsive Fixes -----------------------------------------------------------------------------------*/
-@media screen and (max-width: 600px) {
-  .container {
-    margin: 20px auto;
-    padding: 12px;
-  }
-
-  .logo-crop {
-    width: 100%;
-    height: auto;
-  }
-
-  textarea {
-    font-size: 1em;
-    padding: 10px;
-  }
-
-
-
-  #response {
-    font-size: 1em;
-    padding: 10px;
-    padding-bottom: 40px;
-  }
-
-  .copy-btn {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
-    font-size: 0.75em;
-    padding: 4px 10px;
-    max-width: 120px;
-    white-space: nowrap;
-  }
-
-  #timer {
-    font-size: 0.85em;
-    text-align: center;
-  }
-
-  #auth-controls button {
-    width: auto;
-    font-size: 0.8rem;
-  }
-
-
-
-
-}
 
 /*ADDITIONS BELOW*/
 
@@ -383,13 +322,9 @@ button:hover {
   font-size: 1.3rem;
 }
 
-
-
-
 .dropdown {
   position: relative;
 }
-
 
 .switch-modal-text {
   font-size: 0.85rem;
@@ -568,6 +503,88 @@ button:hover {
 #history-table th:nth-child(3),
 #history-table td:nth-child(3) {
   width: 20%; /* Time */
+}
+
+
+/* ✅ Mobile Responsive Fixes -----------------------------------------------------------------------------------*/
+@media screen and (max-width: 600px) {
+  .container {
+    margin: 20px auto;
+    padding: 12px;
+  }
+
+  .logo-crop {
+    width: 100%;
+    height: auto;
+  }
+
+  textarea {
+    font-size: 1em;
+    padding: 10px;
+  }
+
+
+
+  #response {
+    font-size: 1em;
+    padding: 10px;
+    padding-bottom: 40px;
+  }
+
+  .copy-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    font-size: 0.75em;
+    padding: 4px 10px;
+    max-width: 120px;
+    white-space: nowrap;
+  }
+
+  #timer {
+    font-size: 0.85em;
+    text-align: center;
+  }
+
+  #auth-controls button {
+    width: auto;
+    font-size: 0.8rem;
+  }
+
+}
+/*additions below */
+
+/* Auth buttons, including news button */
+.auth-btn {
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.auth-btn:hover {
+  background-color: #1976d2;
+}
+
+#news-btn {
+  margin-right: auto; /* Pushes it to the far left in flex container */
+}
+
+
+/* News list spacing and readability */
+#news-list {
+  list-style: disc;
+  padding-left: 22px;
+}
+#news-list li {
+  margin: 10px 0;
+  line-height: 1.35;
+}
+#news-list a {
+  text-decoration: underline;
 }
 
 
