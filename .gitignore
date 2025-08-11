@@ -1,2 +1,7 @@
 .env
 node_modules/
+
+# Local artifacts
+*.db
+node_modules/
+.env
