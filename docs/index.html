@@ -28,40 +28,58 @@
 </head>
 
 <body>
-<!--NEW ONE BELOW
-  <div id="auth-header" class="auth-header">
-  <span id="login-status" class="hidden"></span>
 
-  <button id="login-btn" class="auth-btn" onclick="openModal('login')">Login</button>
 
-  <div id="dropdown-container" class="dropdown hidden">
-    <button class="dropdown-toggle"> ☰ </button>
-    <div class="dropdown-menu">
-      <button onclick="openModal('history')">Question History</button>
-      <button onclick="openModal('account')">My Account</button>
-      <button onclick="logout()">Logout</button>
-    </div>
+ 
+
+<div class="topbar">
+
+  <!-- Left side: Logged in as -->
+  <div class="topbar-left">
+    <span id="login-status" class="hidden status-pill"></span>
+  </div>
+
+  <!-- Right side: Latest news + Login/Menu -->
+  <div class="topbar-right">
+    <!-- Latest News -->
+    <button id="news-btn" class="btn-outline-pill" onclick="openNews()">
+      <span class="btn-ico" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="#2563eb" stroke-width="2" />
+          <path d="M14 3v5h5" stroke="#2563eb" stroke-width="2"/>
+          <path d="M9 13h6M9 17h6M9 9h3" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span>Latest news</span>
+    </button>
+
+    <!-- Login button (when logged out) -->
+    <button id="login-btn" class="icon-btn" onclick="openModal('login')" aria-label="Login">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="8" r="3.5" fill="white"/>
+        <path d="M5 19a7 7 0 0 1 14 0" fill="white"/>
+      </svg>
+    </button>
+
+   
+
+<div id="dropdown-container" class="dropdown">
+  <button class="dropdown-toggle" aria-label="Menu">
+    <span class="hamburger"></span>
+  </button>
+  <div class="dropdown-menu">
+    <button onclick="openModal('history')">Question History</button>
+    <button onclick="openModal('account')">My Account</button>
+    <button onclick="logout()">Logout</button>
   </div>
 </div>
--->
 
-<div id="auth-header" class="auth-header">
-  <!-- Latest News Button -->
-  <button id="news-btn" class="auth-btn" onclick="openNews()">Latest news</button>
 
-  <span id="login-status" class="hidden"></span>
-
-  <button id="login-btn" class="auth-btn" onclick="openModal('login')">Login</button>
-
-  <div id="dropdown-container" class="dropdown hidden">
-    <button class="dropdown-toggle"> ☰ </button>
-    <div class="dropdown-menu">
-      <button onclick="openModal('history')">Question History</button>
-      <button onclick="openModal('account')">My Account</button>
-      <button onclick="logout()">Logout</button>
-    </div>
   </div>
+
 </div>
+
+
 
 
 <!-- Main Container -->
@@ -255,7 +273,7 @@ function askQuestion() {
       const icon = icons[tick % icons.length];
       liveTimer.textContent = `${icon} ${elapsed}s`;
       tick++;
-    }, 500);
+    }, 100);
 
     // Safety timeout (20s)
     clearTimeout(timeoutHandle);
@@ -552,17 +570,29 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Dropdown click/tap toggle (mobile-friendly)
-  const ddToggle = document.querySelector('.dropdown-toggle');
-  const ddMenu = document.querySelector('.dropdown-menu');
-  ddToggle?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (!ddMenu) return;
-    ddMenu.style.display = (ddMenu.style.display === 'flex') ? 'none' : 'flex';
-  });
-  document.addEventListener('click', () => {
-    if (ddMenu) ddMenu.style.display = 'none';
-  });
+
+
+// Dropdown click/tap toggle (mobile-friendly)
+const ddWrap  = document.getElementById('dropdown-container');     // the .dropdown
+//const ddToggle = ddWrap?.querySelector('.dropdown-toggle');
+//const ddMenu   = ddWrap?.querySelector('.dropdown-menu');
+
+/*
+ddToggle?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const isOpen = ddWrap.classList.toggle('open');
+  // keep display in sync for older browsers
+  ddMenu.style.display = isOpen ? 'flex' : 'none';
+  ddToggle.setAttribute('aria-expanded', String(isOpen));
+});
+
+// Click outside closes
+document.addEventListener('click', () => {
+  if (!ddWrap) return;
+  ddWrap.classList.remove('open');
+  if (ddMenu) ddMenu.style.display = 'none';
+});
+*/
 
   // Always update buttons on load
   updateAuthButtons();
