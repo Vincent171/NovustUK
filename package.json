@@ -8,7 +8,7 @@
   },
   "author": "Novust Ltd",
   "license": "ISC",
-  "engines": { "node": ">=18" },
+  "engines": { "node": "20.x" },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^12.2.0",
