@@ -72,15 +72,27 @@ app.use(cors({
 // Serve static site locally from /docs
 app.use(express.static(path.join(__dirname, 'docs')));
 
-// Attach user from JWT if present (so /log can capture email)
 const JWT_SECRET = process.env.NOVUST_JWT_SECRET || 'dev-secret-change-me';
 const TOKEN_COOKIE = 'novust_token';
+
+// set cookie usable across Netlify (site) -> Render (API)
+function setAuthCookie(res, payload){
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
+  res.cookie(TOKEN_COOKIE, token, {
+    httpOnly: true,
+    secure: isProd,                 // must be true on Render (https)
+    sameSite: isProd ? 'none' : 'lax',  // 'none' enables cross-site XHR
+    maxAge: 30*24*3600*1000
+  });
+}
+
+// attach user if cookie present (so /log captures email)
 function attachUserIfPresent(req, _res, next){
   try {
     const t = req.cookies?.[TOKEN_COOKIE];
     if (t) {
-      const payload = jwt.verify(t, JWT_SECRET);
-      req.user = { email: payload.email };
+      const { email } = jwt.verify(t, JWT_SECRET);
+      req.user = { email };
     }
   } catch {}
   next();
@@ -91,13 +103,14 @@ function requireAuth(req, res, next){
   try {
     const t = req.cookies?.[TOKEN_COOKIE];
     if (!t) return res.status(401).json({ error: 'Auth required' });
-    const payload = jwt.verify(t, JWT_SECRET);
-    req.user = { email: payload.email };
+    const { email } = jwt.verify(t, JWT_SECRET);
+    req.user = { email };
     next();
   } catch {
     return res.status(401).json({ error: 'Auth required' });
   }
 }
+
 
 // ── Health ──────────────────────────────────────────────────────────────────
 app.get('/health', (_req,res)=> res.json({ ok:true, service:'novust-api' }));
@@ -221,8 +234,7 @@ app.post('/signup', async (req, res) => {
       if (String(e).includes('UNIQUE')) return res.status(409).json({ success:false, error:'Email already registered' });
       throw e;
     }
-    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn:'30d' });
-    res.cookie(TOKEN_COOKIE, token, { httpOnly:true, secure:isProd, sameSite:isProd?'lax':'lax', maxAge:30*24*3600*1000 });
+    setAuthCookie(res, { email });
     res.json({ success:true, message:'Signup successful' });
   } catch (e) { console.error('signup error:', e); res.status(500).json({ error: 'Server error' }); }
 });
@@ -235,14 +247,13 @@ app.post('/login', (req, res) => {
     if (!row) return res.json({ success:false });
     const ok = bcrypt.compareSync(password, row.password_hash);
     if (!ok) return res.json({ success:false });
-    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn:'30d' });
-    res.cookie(TOKEN_COOKIE, token, { httpOnly:true, secure:isProd, sameSite:isProd?'lax':'lax', maxAge:30*24*3600*1000 });
+    setAuthCookie(res, { email });
     res.json({ success:true, fname: row.fname || '' });
   } catch (e) { console.error('login error:', e); res.status(500).json({ error:'Server error' }); }
 });
 
 app.post('/logout', (req, res)=>{
-  res.clearCookie(TOKEN_COOKIE, { httpOnly:true, secure:isProd, sameSite:isProd?'lax':'lax' });
+  res.clearCookie(TOKEN_COOKIE, { httpOnly:true, secure:isProd, sameSite: isProd ? 'none' : 'lax' });
   res.json({ ok:true });
 });
 
@@ -262,11 +273,11 @@ app.post('/update-details', requireAuth, async (req, res) => {
       userDB.prepare(`UPDATE users SET ${updates.join(', ')} WHERE email = ?`).run(...params);
       if (newEmail && newEmail !== user.email) db.prepare('UPDATE questions SET email=? WHERE email=?').run(newEmail, user.email);
     }
-    if (newEmail && newEmail !== user.email) {
-      const token = jwt.sign({ email:newEmail }, JWT_SECRET, { expiresIn:'30d' });
-      res.cookie(TOKEN_COOKIE, token, { httpOnly:true, secure:isProd, sameSite:isProd?'lax':'lax', maxAge:30*24*3600*1000 });
+   if (newEmail && newEmail !== user.email) {
+  setAuthCookie(res, { email: newEmail });
     }
-    res.send('Update success');
+  res.send('Update success');
+
   } catch (e) { console.error('update-details error:', e); res.status(500).send('Server error'); }
 });
 
@@ -275,7 +286,7 @@ app.delete('/account', requireAuth, (req, res) => {
     const email = req.user.email;
     db.prepare('DELETE FROM questions WHERE email=?').run(email);
     userDB.prepare('DELETE FROM users WHERE email=?').run(email);
-    res.clearCookie(TOKEN_COOKIE, { httpOnly:true, secure:isProd, sameSite:isProd?'lax':'lax' });
+    res.clearCookie(TOKEN_COOKIE, { httpOnly:true, secure:isProd, sameSite: isProd ? 'none' : 'lax' });
     res.json({ ok:true });
   } catch (e) { res.status(500).json({ error:'Failed to delete account' }); }
 });
