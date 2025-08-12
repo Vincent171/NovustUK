@@ -1,6 +1,9 @@
 [build]
-  publish = "docs"
+  publish = "docs"      # keep your site under /docs
   command = ""
 
-[functions]
-  directory = "docs/netlify/functions"
+# (Optional) simple security headers for static assets
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

@@ -1,21 +1,22 @@
 {
-  "name": "novustchatbot",
+  "name": "novustuk",
   "version": "1.0.0",
   "description": "Novust UK AI Accountant and Tax Assistant",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js"
   },
-  "keywords": [],
   "author": "Novust Ltd",
   "license": "ISC",
+  "engines": { "node": ">=18" },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "better-sqlite3": "^12.2.0",
-    "body-parser": "^2.2.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
     "openai": "^5.9.2",
     "rss-parser": "^3.13.0"
   }

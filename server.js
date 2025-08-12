@@ -1,111 +1,33 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// server.js (Novust) — cleaned + fixed
-// model selector rows 200 & 205
+// server.js (Novust) — cleaned, secured, and RAG-ready
 // ─────────────────────────────────────────────────────────────────────────────
-const express = require("express");
-const cors = require("cors");
-const path = require("path");
-const Database = require("better-sqlite3");
-const isProd = process.env.NODE_ENV === "production";
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const Database = require('better-sqlite3');
+const cookieParser = require('cookie-parser');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const fs = require('fs');
 const RSSParser = require('rss-parser');
 const rss = new RSSParser();
 
-if (!isProd) {
-  require("dotenv").config();
-  console.log("dotenv loaded (dev)");
-} else {
-  console.log("dotenv NOT loaded (prod)");
-}
-const effectiveKey = process.env.FORCE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
-const mask = v => (v ? `${v.slice(0,8)}...${v.slice(-6)}` : "(none)");
-console.log("🔐 Keys at boot:", {
-  OPENAI_API_KEY: mask(process.env.OPENAI_API_KEY),
-  FORCE_OPENAI_API_KEY: mask(process.env.FORCE_OPENAI_API_KEY),
-  effective: mask(effectiveKey)
-});
-
-
-// use effectiveKey to init client
-//const openai = new OpenAI({ apiKey: effectiveKey });
+const isProd = process.env.NODE_ENV === 'production';
+if (!isProd) { require('dotenv').config(); }
 
 const app = express();
 const port = process.env.PORT || 3000;
-
-// Persistent data dir (Render disk or local)
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 
-// ── SQLite DBs (single source of truth) ──────────────────────────────────────
-const db = new Database(path.join(DATA_DIR, "questions.db")); // Q&A
-const userDB = new Database(path.join(DATA_DIR, "users.db")); // Users
-
-// CORS + parsers — BEFORE routes/static
-const allowed = new Set([
-  "http://localhost:3000",
-  "http://127.0.0.1:5500",
-  "http://localhost:5173",             // common Vite port (optional)
-  "https://novustuk.netlify.app"
-  // add your custom domain here when ready, e.g. "https://novust.com"
-]);
-
-
-//debug tool
-/*app.use((req, res, next) => {
-  console.log("CORS check — Origin:", req.headers.origin, " Referer:", req.headers.referer);
-  next();
-});*/
-//end debug
-
-
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true);             // curl/postman/file://
-    if (origin === "null") return cb(null, true);   // some webviews
-    try {
-      const { hostname } = new URL(origin);
-      if (hostname === "localhost" || hostname === "127.0.0.1") return cb(null, true);
-      if (hostname.endsWith(".netlify.app")) return cb(null, true);
-      if (hostname === "novustuk.netlify.app") return cb(null, true);
-      // add custom domains here later, e.g.: if (hostname === "novust.com") return cb(null, true);
-      return cb(new Error("Not allowed by CORS"));
-    } catch {
-      return cb(new Error("Bad origin"));
-    }
-  },
-  credentials: false,               // you’re not using cookies; avoids stricter preflight
-  optionsSuccessStatus: 204,        // older browsers/Safari quirk
-  preflightContinue: false
-}));
-
-
-// --- CORS: explicit preflight handler (fixes Safari "Preflight response is not successful") ---
-const allowHeaders = "Content-Type, Authorization, X-Requested-With";
-const allowMethods = "GET,POST,OPTIONS";
-
-
-// ✅ use regex catch‑all instead
-app.options(/.*/, (req, res) => {
-  const origin = req.headers.origin || "*";
-  res.setHeader("Access-Control-Allow-Origin", origin);
-  res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    req.headers["access-control-request-headers"] || "Content-Type, Authorization, X-Requested-With"
-  );
-  return res.sendStatus(204);
-});
-
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-
-// Static (optional; keep after parsers)
-app.use(express.static(path.join(__dirname, "docs")));
-
-const OpenAI = require("openai");
+// ── OpenAI client ───────────────────────────────────────────────────────────
+const { OpenAI } = require('openai');
+const effectiveKey = process.env.FORCE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 const openai = new OpenAI({ apiKey: effectiveKey });
+const DEFAULT_MODEL = process.env.NOVUST_MODEL || 'gpt-5-thinking';
 
-console.log("✅ Connected to both databases.");
+// ── DBs ─────────────────────────────────────────────────────────────────────
+const db = new Database(path.join(DATA_DIR, 'questions.db')); // Q&A
+const userDB = new Database(path.join(DATA_DIR, 'users.db')); // Users
 
 // Tables
 db.prepare(`
@@ -125,71 +47,70 @@ userDB.prepare(`
     lname TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     dob TEXT NOT NULL,
-    password TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `).run();
 
-// ── Health ──────────────────────────────────────────────────────────────────
+// ── Middleware ───────────────────────────────────────────────────────────────
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser());
 
-app.get("/health", (_req, res) => {
-  return res.json({ ok: true, service: "novust-api" });
-});
+const ALLOW = (process.env.ALLOW_ORIGINS || 'http://localhost:3000,https://novustuk.netlify.app')
+  .split(',').map(s=>s.trim()).filter(Boolean);
 
+app.use(cors({
+  origin(origin, cb){
+    if (!origin) return cb(null, true); // curl/file://
+    const ok = ALLOW.includes(origin);
+    cb(ok ? null : new Error('Not allowed by CORS'), ok);
+  },
+  credentials: true
+}));
 
-app.get("/health/openai", async (_req, res) => {
+// Serve static site locally from /docs
+app.use(express.static(path.join(__dirname, 'docs')));
+
+// Attach user from JWT if present (so /log can capture email)
+const JWT_SECRET = process.env.NOVUST_JWT_SECRET || 'dev-secret-change-me';
+const TOKEN_COOKIE = 'novust_token';
+function attachUserIfPresent(req, _res, next){
   try {
-    const r = await openai.models.list();
-    res.json({ ok: true, count: r.data?.length || 0 });
-  } catch (e) {
-    console.error("OPENAI health fail:", {
-      status: e.status,
-      code: e.code,
-      msg: e.message,
-      data: e.response?.data,
-    });
-    res.status(500).json({
-      ok: false,
-      status: e.status,
-      code: e.code,
-      msg: e.message,
-    });
-  }
-});
-
-
-app.get("/debug/env", (_req, res) => {
-  const mask = v => (v ? `${v.slice(0,8)}...${v.slice(-6)}` : null);
-  res.json({
-    OPENAI_API_KEY: mask(process.env.OPENAI_API_KEY),
-    FORCE_OPENAI_API_KEY: mask(process.env.FORCE_OPENAI_API_KEY),
-    NODE_ENV: process.env.NODE_ENV || null,
-    RENDER_SERVICE_NAME: process.env.RENDER_SERVICE_NAME || null,
-    RENDER_GIT_BRANCH: process.env.RENDER_GIT_BRANCH || null,
-    RENDER_GIT_COMMIT: process.env.RENDER_GIT_COMMIT || null,
-    uptime_seconds: Math.round(process.uptime())
-  });
-});
-
-
-app.post("/api/ask", async (req, res) => {
-  try {
-    const { question } = req.body;
-    if (!question) {
-      console.warn("[ASK] Missing question in request body");
-      return res.status(400).json({ error: "Question is required" });
+    const t = req.cookies?.[TOKEN_COOKIE];
+    if (t) {
+      const payload = jwt.verify(t, JWT_SECRET);
+      req.user = { email: payload.email };
     }
+  } catch {}
+  next();
+}
+app.use(attachUserIfPresent);
 
-    console.log("[ASK] Received question:", question);
+function requireAuth(req, res, next){
+  try {
+    const t = req.cookies?.[TOKEN_COOKIE];
+    if (!t) return res.status(401).json({ error: 'Auth required' });
+    const payload = jwt.verify(t, JWT_SECRET);
+    req.user = { email: payload.email };
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Auth required' });
+  }
+}
 
-   const system = `
+// ── Health ──────────────────────────────────────────────────────────────────
+app.get('/health', (_req,res)=> res.json({ ok:true, service:'novust-api' }));
+
+// ── Ask API with prompt tightening + rates injection + guardrails ───────────
+const SYSTEM_PROMPT = `
 You are a UK chartered tax adviser for tax year 2025/26 unless the user specifies another year.
 - Always use current UK thresholds/rates for 2025/26; amounts in GBP (£).
 - If the question is missing a total income figure, state the assumption you're making.
 - Prefer HMRC terminology. Avoid US rules unless a comparison is requested.
 - Respond conversationally, like a friendly accountant.
 - Format answers as:
-  1) Short answer (1–20 lines),
+  1) Short answer (1–10 lines),
   2) Calculation / reasoning steps (bullets with numbers),
   3) What to watch out for,
   4) Sources (GOV.UK links).
@@ -197,244 +118,190 @@ You are a UK chartered tax adviser for tax year 2025/26 unless the user specifie
 Do NOT add generic AI disclaimers.
 `;
 
-const messages = [
-  { role: "system", content: system },
-  { role: "user", content: `UK context — ${question}` }
+let RATES = {};
+try {
+  RATES = JSON.parse(fs.readFileSync(path.join(__dirname, 'data/uk_tax_rates_2025_26.json'), 'utf8'));
+} catch { RATES = {}; }
+
+const GOLDEN = [
+  { role:'user', content:'What is employer NIC on a £40,000 salary in 2025/26?' },
+  { role:'assistant', content:'Short answer: approximately £4,635 before any Employment Allowance.\n\n1) Calculation\n- Secondary threshold ~ £9,100 (approx; confirm latest)\n- Employer NIC = (40,000 - 9,100) × 15% = 30,900 × 0.15 = £4,635.\n- Employment Allowance may reduce this by up to £5,000 for eligible employers.\n\nWhat to watch out for\n- Pro-rata for part-year.\n- Check if Employment Allowance applies.\n\nSources\n- https://www.gov.uk/national-insurance-rates-letters\n- https://www.gov.uk/claim-employment-allowance' },
+
+  { role:'user', content:'As a director taking £12,570 salary and £40,000 dividends in 2025/26, what tax will I pay?' },
+  { role:'assistant', content:'Short answer: Salary uses the personal allowance; dividends are taxed after the £500 allowance using 2025/26 dividend bands.\n\n1) Steps\n- Salary £12,570 uses personal allowance → no income tax on salary.\n- Dividend allowance £500.\n- Remaining dividends taxed at 8.75% (basic) / 33.75% (higher) depending on total income.\n\nWatchouts\n- Student loan/child benefit if total income is higher.\n\nSources\n- https://www.gov.uk/tax-on-dividends\n- https://www.gov.uk/income-tax-rates' },
+
+  { role:'user', content:'When do I have to register for VAT?' },
+  { role:'assistant', content:'Short answer: When taxable turnover exceeds the £90,000 rolling 12-month threshold.\n\n1) Steps\n- Monitor any rolling 12-month period (not the tax year).\n- If you expect to exceed it in the next 30 days, register now.\n\nWatchouts\n- Voluntary registration pros/cons.\n\nSources\n- https://www.gov.uk/vat-registration/when-to-register' },
+
+  { role:'user', content:'What is the Benefit-in-Kind on a new electric company car (0g/km) priced £40,000 in 2025/26?' },
+  { role:'assistant', content:'Short answer: Use the 2% BiK band (confirm HMRC table for the year).\n\n1) Steps\n- P11D value £40,000 × 2% = £800 taxable benefit.\n\nWhat to watch out for\n- Scheduled increases in later years.\n\nSources\n- https://www.gov.uk/government/publications/company-car-benefit-in-kind-appropriate-percentages' },
+
+  { role:'user', content:'How do CIS deductions work for a subcontractor?' },
+  { role:'assistant', content:'Short answer: Contractors deduct 20% (registered) or 30% (unverified) from labour, not materials.\n\n1) Steps\n- Deduction shown on CIS statements.\n- Offset on Self Assessment tax return.\n\nSources\n- https://www.gov.uk/what-you-must-do-as-a-cis-subcontractor' },
+
+  { role:'user', content:'Capital gains allowance and rates for 2025/26?' },
+  { role:'assistant', content:'Short answer: Use the current annual exempt amount and CGT rates by asset type.\n\nWhat to watch out for\n- Residential property surcharge; Business Asset Disposal Relief criteria.\n\nSources\n- https://www.gov.uk/capital-gains-tax' }
 ];
 
+function postProcess(text){
+  text = text.replace(/\b(2024\/25|2024-25)\b/g, '2025/26');             // normalize year
+  if (/employer (?:NI|NIC|national insurance)/i.test(text) && /\b13\.8 ?%/i.test(text)) {
+    text = text.replace(/\b13\.8 ?%/gi, '15%');                          // defensive NIC fix
+  }
+  if (!/gov\.uk/i.test(text)) {                                          // ensure sources
+    text += `\n\nSources: https://www.gov.uk/national-insurance, https://www.gov.uk/income-tax-rates`;
+  }
+  return text;
+}
 
-    //MODEL SELECTOR
-    console.log("[ASK] Sending to OpenAI with model:", process.env.NOVUST_MODEL || "gpt-4o-mini"); //MODELSELECTOR HERE
+app.post('/api/ask', async (req, res) => {
+  try {
+    const q = String(req.body?.question || '').slice(0, 4000);
+    if (!q) return res.status(400).json({ error: 'Question is required' });
 
-    let answer;
+    const messages = [
+      { role:'system', content: SYSTEM_PROMPT },
+      { role:'system', content: `Rates 2025/26 (source of truth):\n${JSON.stringify(RATES)}` },
+      ...GOLDEN,
+      { role:'user', content: `UK context — ${q}` }
+    ];
+
+    let answer = '';
     try {
-      const completion = await openai.chat.completions.create({
-        model: process.env.NOVUST_MODEL || "gpt-4o-mini", //MODELSELECTOR HERE
-        messages
-      });
-
-      answer = completion.choices?.[0]?.message?.content?.trim() || "";
-    } catch (e) {
-      console.error("[ASK] OpenAI API error:", {
-        status: e.status,
-        code: e.code,
-        msg: e.message,
-        data: e.response?.data
-      });
-      throw e;
+      const completion = await openai.chat.completions.create({ model: DEFAULT_MODEL, messages });
+      answer = completion.choices?.[0]?.message?.content?.trim() || '';
+    } catch (err) {
+      // Safe fallback if your key doesn't have access to the reasoning tier
+      if (String(err).includes('does not exist') || String(err).includes('404')) {
+        const fallback = 'gpt-4o-mini';
+        const completion = await openai.chat.completions.create({ model: fallback, messages });
+        answer = completion.choices?.[0]?.message?.content?.trim() || '';
+      } else {
+        throw err;
+      }
     }
 
-    // Remove ChatGPT's default disclaimer if present
-    answer = answer.replace(/\*\*Disclaimer\*\*:.*$/is, "").trim();
-
-    // Prepend your custom blurb
-    const intro = "Hi there, thanks for choosing me to help. Please note I am a working model for testing purposes only right now. Exciting news however, the team behind me are working hard to update me to provide a more tailored and individual response as an actual boring accountant in the future, well not that exciting but is to me.\n\nBelow is the answer you need:\n\n";
-    answer = intro + answer;
-
-    if (!answer.trim()) answer = "Sorry — I couldn’t generate an answer.";
+    answer = answer.replace(/\*\*Disclaimer\*\*:.*$/is, '').trim();
+    answer = 'Below is the answer you need:\n\n' + postProcess(answer);
+    if (!answer.trim()) answer = 'Sorry — I couldn’t generate an answer.';
     return res.json({ answer });
-
   } catch (err) {
-    console.error("[ASK] Outer error:", err);
-    return res.status(500).json({ error: "Server error" });
+    console.error('[ASK] error:', err.message);
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 
+// Legacy alias
+app.post('/ask', (req,res)=>{ req.url='/api/ask'; return app._router.handle(req,res); });
 
-// Optional alias so older frontend hitting /ask still works:
-app.post("/ask", (req, res) => {
-  req.url = "/api/ask";
-  return app._router.handle(req, res);
-});
-
-
-// ── LOG Q&A (store into questions table) ─────────────────────────────────────
-app.post("/log", (req, res) => {
+// ── Log Q&A (captures email if logged in) ────────────────────────────────────
+app.post('/log', (req, res) => {
   try {
-    const { question, answer, email } = req.body;
-    if (!question || !answer)
-      return res.status(400).json({ error: "question and answer are required" });
-
-    db.prepare(`
-      INSERT INTO questions (question, answer, email)
-      VALUES (?, ?, ?)
-    `).run(question, answer, email || null);
-
-    return res.json({ message: "Log saved" });
-  } catch (err) {
-    console.error("log error:", err);
-    return res.status(500).json({ error: "Failed to save log" });
+    const { question, answer } = req.body;
+    if (!question || !answer) return res.status(400).json({ error: 'question and answer are required' });
+    const email = req.user?.email || null;
+    db.prepare('INSERT INTO questions (question, answer, email) VALUES (?,?,?)').run(question, answer, email);
+    res.json({ message: 'Log saved' });
+  } catch (e) {
+    console.error('log error:', e);
+    res.status(500).json({ error: 'Failed to save log' });
   }
 });
 
-
-// ── SIGNUP (use userDB) ─────────────────────────────────────────────────────
-app.post("/signup", (req, res) => {
+// ── Auth ────────────────────────────────────────────────────────────────────
+app.post('/signup', async (req, res) => {
   try {
     const { fname, lname, email, dob, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
-    }
-
-    const insert = userDB.prepare(`
-      INSERT INTO users (email, fname, lname, dob, password)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+    const pwHash = await bcrypt.hash(password, 12);
     try {
-      insert.run(email, fname || "", lname || "", dob || "", password);
+      userDB.prepare('INSERT INTO users (email, fname, lname, dob, password_hash) VALUES (?,?,?,?,?)')
+        .run(email, fname||'', lname||'', dob||'', pwHash);
     } catch (e) {
-      if (String(e).includes("UNIQUE")) {
-        return res.status(409).json({ error: "Email already registered" });
-      }
+      if (String(e).includes('UNIQUE')) return res.status(409).json({ success:false, error:'Email already registered' });
       throw e;
     }
-
-    console.log("🟢 /signup:", email);
-    return res.json({ success: true, message: "Signup successful" });
-  } catch (err) {
-    console.error("signup error:", err);
-    return res.status(500).json({ error: "Server error" });
-  }
+    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn:'30d' });
+    res.cookie(TOKEN_COOKIE, token, { httpOnly:true, secure:isProd, sameSite:isProd?'lax':'lax', maxAge:30*24*3600*1000 });
+    res.json({ success:true, message:'Signup successful' });
+  } catch (e) { console.error('signup error:', e); res.status(500).json({ error: 'Server error' }); }
 });
 
-
-// ── LOGIN (use userDB) ──────────────────────────────────────────────────────
-app.post("/login", (req, res) => {
+app.post('/login', (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password)
-      return res.status(400).json({ error: "Email and password are required" });
-
-    const row = userDB.prepare(`
-      SELECT email, fname, password
-      FROM users
-      WHERE email = ?
-    `).get(email);
-
-    if (!row) return res.json({ success: false });
-
-    // If hashing, replace with bcrypt.compareSync(...)
-    if (row.password !== password) return res.json({ success: false });
-
-    console.log("🟢 /login:", email);
-    return res.json({ success: true, fname: row.fname || "" });
-  } catch (err) {
-    console.error("login error:", err);
-    return res.status(500).json({ error: "Server error" });
-  }
+    if (!email || !password) return res.status(400).json({ error:'Email and password are required' });
+    const row = userDB.prepare('SELECT email, fname, password_hash FROM users WHERE email=?').get(email);
+    if (!row) return res.json({ success:false });
+    const ok = bcrypt.compareSync(password, row.password_hash);
+    if (!ok) return res.json({ success:false });
+    const token = jwt.sign({ email }, JWT_SECRET, { expiresIn:'30d' });
+    res.cookie(TOKEN_COOKIE, token, { httpOnly:true, secure:isProd, sameSite:isProd?'lax':'lax', maxAge:30*24*3600*1000 });
+    res.json({ success:true, fname: row.fname || '' });
+  } catch (e) { console.error('login error:', e); res.status(500).json({ error:'Server error' }); }
 });
 
+app.post('/logout', (req, res)=>{
+  res.clearCookie(TOKEN_COOKIE, { httpOnly:true, secure:isProd, sameSite:isProd?'lax':'lax' });
+  res.json({ ok:true });
+});
 
-// ── UPDATE DETAILS (use userDB, also update questions.email) ─────────────────
-app.post("/update-details", (req, res) => {
+app.post('/update-details', requireAuth, async (req, res) => {
   try {
-    const { currentEmail, password, newEmail, newPassword } = req.body;
-    if (!currentEmail || !password) {
-      return res.status(400).send("Missing credentials");
-    }
+    const { password, newEmail, newPassword } = req.body;
+    const user = userDB.prepare('SELECT email, password_hash FROM users WHERE email=?').get(req.user.email);
+    if (!user) return res.status(404).send('Account not found');
+    if (!bcrypt.compareSync(password, user.password_hash)) return res.status(401).send('Incorrect password');
 
-    const user = userDB.prepare(`
-      SELECT email, password
-      FROM users
-      WHERE email = ?
-    `).get(currentEmail);
-
-    if (!user) return res.status(404).send("Account not found");
-
-    // If hashing, use bcrypt.compareSync(password, user.password)
-    if (user.password !== password) return res.status(401).send("Incorrect password");
-
-    const updates = [];
-    const params = [];
-
-    if (newEmail && newEmail !== currentEmail) {
-      updates.push("email = ?");
-      params.push(newEmail);
-    }
-    if (newPassword) {
-      updates.push("password = ?");
-      params.push(newPassword);
-    }
-    params.push(currentEmail);
+    const updates = []; const params = []; let updatedEmail = user.email;
+    if (newEmail && newEmail !== user.email) { updates.push('email=?'); params.push(newEmail); updatedEmail = newEmail; }
+    if (newPassword) { const hash = await bcrypt.hash(newPassword, 12); updates.push('password_hash=?'); params.push(hash); }
+    params.push(user.email);
 
     if (updates.length) {
-      userDB.prepare(`UPDATE users SET ${updates.join(", ")} WHERE email = ?`).run(...params);
-
-      // also update historical questions email in the Q&A DB
-      if (newEmail && newEmail !== currentEmail) {
-        db.prepare(`UPDATE questions SET email = ? WHERE email = ?`).run(newEmail, currentEmail);
-      }
+      userDB.prepare(`UPDATE users SET ${updates.join(', ')} WHERE email = ?`).run(...params);
+      if (newEmail && newEmail !== user.email) db.prepare('UPDATE questions SET email=? WHERE email=?').run(newEmail, user.email);
     }
-
-    return res.send("Update success");
-  } catch (err) {
-    console.error("update-details error:", err);
-    return res.status(500).send("Server error");
-  }
+    if (newEmail && newEmail !== user.email) {
+      const token = jwt.sign({ email:newEmail }, JWT_SECRET, { expiresIn:'30d' });
+      res.cookie(TOKEN_COOKIE, token, { httpOnly:true, secure:isProd, sameSite:isProd?'lax':'lax', maxAge:30*24*3600*1000 });
+    }
+    res.send('Update success');
+  } catch (e) { console.error('update-details error:', e); res.status(500).send('Server error'); }
 });
 
-
-// ── HISTORY (read from questions table) ──────────────────────────────────────
-app.get("/history", (req, res) => {
+app.delete('/account', requireAuth, (req, res) => {
   try {
-    const email = req.query.email;
-    if (!email) return res.status(400).json({ error: "email is required" });
-
-    const rows = db.prepare(`
-      SELECT question, answer, timestamp
-      FROM questions
-      WHERE email = ?
-      ORDER BY datetime(timestamp) DESC
-      LIMIT 200
-    `).all(email);
-
-    return res.json(rows);
-  } catch (err) {
-    console.error("history error:", err);
-    return res.status(500).json({ error: "Server error" });
-  }
+    const email = req.user.email;
+    db.prepare('DELETE FROM questions WHERE email=?').run(email);
+    userDB.prepare('DELETE FROM users WHERE email=?').run(email);
+    res.clearCookie(TOKEN_COOKIE, { httpOnly:true, secure:isProd, sameSite:isProd?'lax':'lax' });
+    res.json({ ok:true });
+  } catch (e) { res.status(500).json({ error:'Failed to delete account' }); }
 });
 
-// ── USER INFO (use userDB) ──────────────────────────────────────────────────
-app.get("/user-info", (req, res) => {
+// ── History & User Info (protected) ─────────────────────────────────────────
+app.get('/history', requireAuth, (req, res) => {
   try {
-    const email = req.query.email;
-    if (!email) return res.status(400).json({ error: "email is required" });
-
-    const row = userDB.prepare(`
-      SELECT email, fname, lname
-      FROM users
-      WHERE email = ?
-    `).get(email);
-
-    if (!row) return res.status(404).json({ error: "Not found" });
-    return res.json(row);
-  } catch (err) {
-    console.error("user-info error:", err);
-    return res.status(500).json({ error: "Server error" });
-  }
+    const rows = db.prepare('SELECT question, answer, timestamp FROM questions WHERE email=? ORDER BY datetime(timestamp) DESC LIMIT 200').all(req.user.email);
+    res.json(rows);
+  } catch (e) { console.error('history error:', e); res.status(500).json({ error:'Server error' }); }
 });
 
-// ── Central error handler (last) ─────────────────────────────────────────────
-app.use((err, req, res, next) => {
-  console.error("🔥 Unhandled error:", err);
-  if (res.headersSent) return next(err);
-  return res.status(500).json({ error: "Server error" });
+app.get('/user-info', requireAuth, (req, res) => {
+  try {
+    const row = userDB.prepare('SELECT email, fname, lname FROM users WHERE email=?').get(req.user.email);
+    if (!row) return res.status(404).json({ error:'Not found' });
+    res.json(row);
+  } catch (e) { console.error('user-info error:', e); res.status(500).json({ error:'Server error' }); }
 });
 
-// ── Start ───────────────────────────────────────────────────────────────────
-app.listen(port, () => {
-  console.log(`🚀 Server running on http://localhost:${port}`);
-});
-
-// ── NEWS LINKS ──────────────────────────────────────────────────────────────
-
-app.get('/news', async (req, res) => {
+// ── News ────────────────────────────────────────────────────────────────────
+app.get('/news', async (_req, res) => {
   try {
     const feeds = [
       'https://www.gov.uk/government/organisations/hm-revenue-customs.atom',
-      'https://www.icaew.com/rss',                 // hub page; you can swap for specific feeds you like
+      'https://www.icaew.com/rss',
       'https://www.accountingweb.co.uk/rss',
       'https://www.gov.uk/government/organisations/hm-treasury.atom'
     ];
@@ -445,12 +312,13 @@ app.get('/news', async (req, res) => {
         (f.items || []).slice(0, 5).forEach(i => {
           all.push({ title: i.title, link: i.link, date: i.isoDate || i.pubDate, source: f.title });
         });
-      } catch (e) { /* skip failing feed */ }
+      } catch { /* ignore individual feed errors */ }
     }
-    // sort newest first
-    all.sort((a,b)=> new Date(b.date||0)-new Date(a.date||0));
+    all.sort((a,b)=> new Date(b.date||0) - new Date(a.date||0));
     res.json(all.slice(0, 12));
-  } catch (e) {
-    res.status(500).json({ error: 'Failed to fetch news' });
-  }
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch news' }); }
 });
+
+// ── Start ───────────────────────────────────────────────────────────────────
+app.use((err, req, res, next)=>{ console.error('🔥 Unhandled error:', err); if (res.headersSent) return next(err); res.status(500).json({ error:'Server error' }); });
+app.listen(port, ()=> console.log(`🚀 Server running on http://localhost:${port}`));

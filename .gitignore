@@ -1,7 +1,25 @@
-.env
+# Node
 node_modules/
+npm-debug.log*
+yarn.lock
+package-lock.json
 
-# Local artifacts
-*.db
-node_modules/
+# Env & secrets
 .env
+.env.*
+
+# SQLite data
+*.db
+*.sqlite
+/data/*.db
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Build artifacts
+.netlify/
+vercel/
+dist/
