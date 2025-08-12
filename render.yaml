@@ -1,35 +1,25 @@
-# render.yaml — Novust API (Node + SQLite on Render)
 services:
   - type: web
     name: novust-api
     env: node
-    plan: free
-
+    autoDeploy: true
     buildCommand: npm install
     startCommand: node server.js
-
-    # Health check
     healthCheckPath: /health
-
-    # Auto deploy on push to the linked branch
-    autoDeploy: true
-
-    # Environment variables (secrets managed in dashboard)
-    # `sync: false` = keep values from the Render dashboard; do not overwrite from YAML.
     envVars:
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: FORCE_OPENAI_API_KEY
-        sync: false
-      - key: NOVUST_MODEL
-        value: gpt-4o-mini
-      - key: DATA_DIR
-        value: /var/data
       - key: NODE_ENV
         value: production
-
-    # OPTIONAL: persistent disk for SQLite (keeps DBs across restarts)
+      - key: OPENAI_API_KEY
+        sync: false            # set in Render dashboard
+      - key: NOVUST_MODEL
+        value: gpt-5-thinking
+      - key: NOVUST_JWT_SECRET
+        sync: false            # set in Render dashboard
+      - key: ALLOW_ORIGINS
+        value: "https://<your-netlify-domain>,http://localhost:3000"
+      - key: DATA_DIR
+        value: /opt/render/project/src/data
     disk:
       name: data
-      mountPath: /var/data
+      mountPath: /opt/render/project/src/data
       sizeGB: 1

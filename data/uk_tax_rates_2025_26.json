@@ -1,0 +1,20 @@
+{
+  "year": "2025/26",
+  "nic": {
+    "employer_secondary_rate_percent": 15,
+    "class_1a_rate_percent": 15
+  },
+  "income_tax": {
+    "personal_allowance": 12570,
+    "basic_rate_percent": 20,
+    "higher_rate_percent": 40,
+    "additional_rate_percent": 45
+  },
+  "dividends": {
+    "allowance": 500,
+    "basic_percent": 8.75,
+    "higher_percent": 33.75,
+    "additional_percent": 39.35
+  },
+  "vat": { "registration_threshold": 90000 }
+}
