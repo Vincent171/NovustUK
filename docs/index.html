@@ -6,17 +6,32 @@
   <title>UK AI Tax Assistant</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* Minimal DOB styles so it looks tidy on mobile without editing style.css */
+    /* minimal extras kept inline for clarity */
     .sr-only { position: absolute; left: -9999px; }
     .dob-row { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 8px; margin: 6px 0; }
     .dob-row select {
       width: 100%; padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; background: #fff;
       -webkit-appearance: none; appearance: none;
     }
+    /* Login-btn icon swap */
+    #login-btn .icon-hamb { display: none; }
+    #login-btn.logged-in .icon-person { display: none; }
+    #login-btn.logged-in .icon-hamb { display: inline; }
+
+    /* Email button styling (next to Copy) — NEW */
+    #email-btn {                                     /* NEW */
+      position: absolute; bottom: 10px; right: 110px;/* sits left of Copy   */
+      font-size: .8em; padding: 6px 12px;
+      background: #10b981; color: #fff; border: none; border-radius: 4px;
+      transition: opacity .2s ease, transform .05s ease;
+      display: none;                                 /* shown via JS only   */
+    }
+    #email-btn:active { transform: translateY(1px); }/* NEW */
   </style>
 </head>
 <body>
 
+<!-- Top bar -->
 <div class="topbar">
   <div class="topbar-left">
     <span id="login-status" class="hidden status-pill"></span>
@@ -34,20 +49,24 @@
       <span>Latest news</span>
     </button>
 
-    <!-- Login button doubles as account menu trigger when logged in -->
+    <!-- ONE button that does login (logged out) and opens menu (logged in) -->
     <div class="account-dropdown">
       <button id="login-btn" class="icon-btn" aria-label="Login / Account">
-        <!-- Person icon (default when logged OUT) -->
-        <svg class="ico-person" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="8" r="3.5" fill="white"></circle>
-          <path d="M5 19a7 7 0 0 1 14 0" fill="white"></path>
-        </svg>
-        <!-- Hamburger (shown when logged IN) -->
-        <svg class="ico-hamburger" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="4" y="6"  width="16" height="2" fill="white"></rect>
-          <rect x="4" y="11" width="16" height="2" fill="white"></rect>
-          <rect x="4" y="16" width="16" height="2" fill="white"></rect>
-        </svg>
+        <!-- person icon (default when logged out) -->
+        <span class="icon-person" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="8" r="3.5" fill="white"></circle>
+            <path d="M5 19a7 7 0 0 1 14 0" fill="white"></path>
+          </svg>
+        </span>
+        <!-- hamburger icon (shows when logged in) -->
+        <span class="icon-hamb" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <rect x="4" y="6"  width="16" height="2" fill="white"></rect>
+            <rect x="4" y="11" width="16" height="2" fill="white"></rect>
+            <rect x="4" y="16" width="16" height="2" fill="white"></rect>
+          </svg>
+        </span>
       </button>
       <div id="accountMenu" class="dropdown-menu" hidden>
         <button onclick="openModal('history')">Question History</button>
@@ -69,10 +88,9 @@
     <p class="subtext">Here to help as your AI Accountant. Ask away.</p>
   </div>
 
-  <textarea id="questionInput" rows="5" placeholder="e.g. How much tax will I pay on £30k self employed income?
-How much tax will I pay on my rental income of £24k?
-Can I go over the VAT threshold without registering?
-Is my employer required to offer me a pension scheme?"></textarea>
+  <textarea id="questionInput" rows="5" placeholder="e.g. How much tax will I pay on £30k income?
+Can I claim entertaining expenses off my corporation tax?
+What is the BIK on an electric car?"></textarea>
 
   <div style="text-align: center;">
     <button onclick="askQuestion()" id="askBtn">Ask</button>
@@ -81,6 +99,7 @@ Is my employer required to offer me a pension scheme?"></textarea>
   <div id="answer-box">
     <div id="response">
       <div id="answer-text"></div>
+      <button id="email-btn" onclick="emailMe()" title="Email this answer to me">✉️ Email me</button> <!-- NEW -->
       <button onclick="copyAnswer()" class="copy-btn">⧉ Copy</button>
     </div>
     <p id="timer"></p>
@@ -177,7 +196,11 @@ Is my employer required to offer me a pension scheme?"></textarea>
     <h3>My Question History</h3>
     <table id="history-table" border="1">
       <thead>
-        <tr><th>Question</th><th>Answer</th><th>Time</th></tr>
+        <tr>
+          <th>Question</th>
+          <th>Answer</th>
+          <th>Time</th>
+        </tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -191,12 +214,18 @@ let hasSignedUp = false;
 let questionCount = 0;
 let timerInterval, timeoutHandle;
 let responseTimes = [];
-const icons = ["🧾", "💷", "💼"];
-const TICK_MS = 500;
+const icons = ["🧾","💷","💼"];
+const TICK_MS = 500; // reduced CPU load
 
-// Detect local vs deployed
-const isLocalPage = location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.protocol === "file:";
-const API_BASE = isLocalPage ? "http://localhost:3000" : "https://novustuk.onrender.com";
+// Environment-aware API base
+const isLocalPage =
+  location.hostname === "localhost" ||
+  location.hostname === "127.0.0.1" ||
+  location.protocol === "file:";
+
+const API_BASE = isLocalPage
+  ? "http://localhost:3000"
+  : "https://novustuk.onrender.com";
 
 /* ASK QUESTION */
 function askQuestion() {
@@ -211,9 +240,7 @@ function askQuestion() {
     questionCount++;
     const isLoggedIn = !!localStorage.getItem("loggedInEmail");
 
-    if (questionCount === 2 && !hasSignedUp && !isLoggedIn) {
-      showSignup(); return;
-    }
+    if (questionCount === 2 && !hasSignedUp && !isLoggedIn) { showSignup(); return; }
     if (!question) { alert("Please enter a question."); return; }
 
     responseBox.textContent = "";
@@ -264,8 +291,11 @@ function askQuestion() {
       });
 
       responseBox.classList.add("show");
-      logo.classList.add('pulse'); setTimeout(() => logo.classList.remove('pulse'), 600);
+      logo.classList.add('pulse');
+      setTimeout(() => logo.classList.remove('pulse'), 600);
       timerText.textContent = `⏱️ Response time: ${elapsed}s`;
+
+      updateEmailBtnVisibility(); // NEW
     })
     .catch(err => {
       console.error("❌ API call failed:", err);
@@ -273,58 +303,28 @@ function askQuestion() {
       clearTimeout(timeoutHandle);
       overlay.style.display = "none";
       responseBox.textContent = "Failed to get a response. Please try again later.";
+      updateEmailBtnVisibility(); // NEW (will hide)
     });
 
-  } catch (error) { console.error("🚨 Error in askQuestion():", error); }
+  } catch (error) {
+    console.error("🚨 Error in askQuestion():", error);
+  }
 }
 
-function showSignup(){ document.getElementById("signup-modal").style.display = "flex"; }
-function closeSignup(){ document.getElementById("signup-modal").style.display = "none"; }
-function skipSignup(){ closeSignup(); hasSignedUp = false; }
+function showSignup() { document.getElementById("signup-modal").style.display = "flex"; }
+function closeSignup() { document.getElementById("signup-modal").style.display = "none"; }
+function skipSignup() { closeSignup(); hasSignedUp = false; }
 
-function logout(){
+function logout() {
   fetch(`${API_BASE}/logout`, { method: 'POST', credentials:'include' })
     .finally(() => {
       localStorage.removeItem("loggedInEmail");
       localStorage.removeItem("loggedInName");
       updateAuthButtons();
+      updateEmailBtnVisibility(); // NEW
       alert("You’ve been logged out.");
       window.location.reload();
     });
-}
-
-/* Icon swap + account menu */
-function toggleAccountMenu(){
-  const menu = document.getElementById('accountMenu');
-  if (!menu) return;
-  menu.hidden = !menu.hidden;
-}
-function closeAccountMenu(){
-  const menu = document.getElementById('accountMenu');
-  if (menu) menu.hidden = true;
-}
-function updateAuthButtons() {
-  const email = localStorage.getItem("loggedInEmail");
-  const loggedIn = !!email;
-  const loginBtn = document.getElementById("login-btn");
-  const loginStatus = document.getElementById("login-status");
-
-  if (loggedIn) {
-    loginStatus.textContent = `✅ Logged in as ${localStorage.getItem("loggedInName") || email}`;
-    loginStatus.classList.remove("hidden");
-
-    loginBtn.classList.add("logged-in");                    // shows hamburger
-    loginBtn.onclick = (e)=>{ e.stopPropagation(); toggleAccountMenu(); };
-    loginBtn.setAttribute('aria-label','Account menu');
-  } else {
-    loginStatus.textContent = "";
-    loginStatus.classList.add("hidden");
-
-    loginBtn.classList.remove("logged-in");                 // shows person
-    loginBtn.onclick = ()=> openModal('login');
-    loginBtn.setAttribute('aria-label','Login');
-    closeAccountMenu();
-  }
 }
 
 function copyAnswer() {
@@ -337,6 +337,37 @@ function copyAnswer() {
   });
 }
 
+/* Email this answer — NEW */
+function emailMe(){
+  const isLoggedIn = !!localStorage.getItem("loggedInEmail");
+  if (!isLoggedIn) { openModal('login'); return; }
+
+  const q = document.getElementById('questionInput').value.trim();
+  const a = document.getElementById('answer-text').textContent.trim();
+  if (!a) return;
+
+  const btn = document.getElementById('email-btn');
+  btn.disabled = true; btn.textContent = 'Sending…';
+
+  fetch(`${API_BASE}/email/me-answer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ question: q, answer: a })
+  })
+  .then(r => r.json())
+  .then(() => { btn.textContent = 'Sent!'; setTimeout(()=>{ btn.textContent='✉️ Email me'; btn.disabled=false; }, 1500); })
+  .catch(() => { btn.textContent = 'Error'; setTimeout(()=>{ btn.textContent='✉️ Email me'; btn.disabled=false; }, 1500); });
+}
+
+function updateEmailBtnVisibility(){ // NEW
+  const btn = document.getElementById('email-btn');
+  if (!btn) return;
+  const loggedIn = !!localStorage.getItem('loggedInEmail');
+  const hasAnswer = !!document.getElementById('answer-text').textContent.trim();
+  btn.style.display = (loggedIn && hasAnswer) ? 'inline-block' : 'none';
+}
+
 function openModal(type) {
   closeModal();
 
@@ -344,54 +375,121 @@ function openModal(type) {
     document.getElementById("modal-text").innerHTML = `
       <h3>Privacy Policy</h3>
       <p>Last updated: July 2025</p>
-      <p>At <strong>Novust Ltd</strong>, we take your privacy seriously. This Privacy Policy outlines how we collect, use, and protect your personal information when you use our UK AI Tax Assistant platform.</p>
+      <p>At <strong>Novust Ltd</strong>, we take your privacy seriously. This policy outlines how we collect, use, and protect your information when using our UK AI Tax Assistant.</p>
       <h4>1. Information We Collect</h4>
-      <ul><li>Full name, email address, and date of birth during sign-up.</li><li>Questions you ask, and the corresponding AI-generated responses.</li><li>Basic usage data (e.g. browser, device type) for analytics and support.</li></ul>
+      <ul>
+        <li>Name, email, date of birth during sign-up.</li>
+        <li>Questions you ask and the AI responses.</li>
+        <li>Basic usage data for analytics and support.</li>
+      </ul>
       <h4>2. How We Use Your Data</h4>
-      <ul><li>To provide personalized tax responses and save your history.</li><li>To allow you to log in and manage your account.</li><li>To improve the accuracy and quality of our AI responses.</li></ul>
-      <h4>3. Data Security</h4>
-      <p>Your passwords are <strong>hashed (bcrypt)</strong>. We do not sell your information to third parties.</p>
-      <h4>4. Data Retention</h4>
-      <p>We retain your question and account data for as long as your account is active. You can delete your account anytime under <em>My Account</em>.</p>
+      <ul>
+        <li>To provide personalised tax responses and save your history.</li>
+        <li>To allow you to log in and manage your account.</li>
+        <li>To improve response accuracy and quality.</li>
+      </ul>
+      <h4>3. Security</h4>
+      <p>Passwords are <strong>hashed (bcrypt)</strong>. We do not sell your information.</p>
+      <h4>4. Retention</h4>
+      <p>We retain data while your account is active. You can delete your account anytime under <em>My Account</em>.</p>
       <h4>5. Your Rights</h4>
-      <ul><li>Access or update your information via "My Account".</li><li>Request account or data deletion.</li></ul>
-      <p>For any privacy-related concerns, contact <a href="mailto:privacy@novust.com">privacy@novust.com</a>.</p>
+      <ul>
+        <li>Access/update your information via "My Account".</li>
+        <li>Request account or data deletion.</li>
+      </ul>
+      <p>Contact: <a href="mailto:privacy@novust.com">privacy@novust.com</a>.</p>
     `;
-    document.getElementById("modal-overlay").style.display = "flex"; return;
+    document.getElementById("modal-overlay").style.display = "flex";
+    return;
   }
 
   if (type === "terms") {
     document.getElementById("modal-text").innerHTML = `
       <h3>Terms & Conditions</h3>
       <p>Last updated: July 2025</p>
-      <p>This site provides AI-generated tax guidance and is not a substitute for formal financial or legal advice. Always consult a qualified accountant or HMRC for complex cases.</p>
-      <h4>Account Usage</h4>
-      <ul><li>One account per person. You are responsible for keeping your login credentials secure.</li><li>Do not use the service for illegal or abusive purposes.</li></ul>
-      <h4>Accuracy & Availability</h4>
-      <p>We strive for accuracy but are not liable for actions taken based on AI responses. Service may change without notice.</p>
-      <p>Questions? <a href="mailto:support@novust.com">support@novust.com</a>.</p>
+      <p>By using <strong>Novust Ltd</strong>, you agree to:</p>
+      <ul>
+        <li>Use the service lawfully and keep your login secure.</li>
+        <li>Understand content is AI-generated guidance; confirm complex matters with HMRC/a qualified adviser.</li>
+      </ul>
+      <p>We may update/modify/suspend services for maintenance or security.</p>
+      <p>Company content/code remain our IP.</p>
+      <p>Support: <a href="mailto:support@novust.com">support@novust.com</a>.</p>
     `;
-    document.getElementById("modal-overlay").style.display = "flex"; return;
+    document.getElementById("modal-overlay").style.display = "flex";
+    return;
   }
 
   const modal = document.getElementById(`${type}-modal`);
   if (modal) { modal.style.display = "flex"; if (type === "history") loadHistory(); }
 }
-function closeModal(event){ document.querySelectorAll(".modal-overlay").forEach(m => m.style.display = "none"); if (event) event.stopPropagation(); }
 
-// Init UI + forms
+function closeModal(event) {
+  document.querySelectorAll(".modal-overlay").forEach(m => m.style.display = "none");
+  if (event) event.stopPropagation();
+}
+
+/* ── Auth UI wiring ───────────────────────────────────────────── */
+
+function toggleAccountMenu(){
+  const menu = document.getElementById('accountMenu');
+  if (menu) menu.hidden = !menu.hidden;
+}
+function closeAccountMenu(){
+  const menu = document.getElementById('accountMenu');
+  if (menu) menu.hidden = true;
+}
+
+function updateAuthButtons() {
+  const email = localStorage.getItem("loggedInEmail");
+  const loggedIn = !!email;
+  const loginBtn = document.getElementById("login-btn");
+  const loginStatus = document.getElementById("login-status");
+
+  if (loggedIn) {
+    loginStatus.textContent = `✅ Logged in as ${localStorage.getItem("loggedInName") || email}`;
+    loginStatus.classList.remove("hidden");
+    loginBtn.onclick = (e)=>{ e.stopPropagation(); toggleAccountMenu(); };
+    loginBtn.setAttribute('aria-label','Account menu');
+    loginBtn.classList.add('logged-in'); // swap to hamburger
+  } else {
+    loginStatus.textContent = "";
+    loginStatus.classList.add("hidden");
+    loginBtn.onclick = ()=> openModal('login');
+    loginBtn.setAttribute('aria-label','Login');
+    loginBtn.classList.remove('logged-in'); // swap back to person
+    closeAccountMenu();
+  }
+  updateEmailBtnVisibility(); // NEW
+}
+
+// close account menu on outside click / Esc
+document.addEventListener('click', (e)=>{
+  const wrap = document.querySelector('.account-dropdown');
+  if (wrap && !wrap.contains(e.target)) closeAccountMenu();
+});
+document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeAccountMenu(); });
+
+/* ── Forms & init ─────────────────────────────────────────────── */
+
 document.addEventListener("DOMContentLoaded", () => {
-  // Populate DOB selects
+  // populate DOB selects
   (function initDOB(){
     const daySel = document.getElementById("dob-day");
     const monthSel = document.getElementById("dob-month");
     const yearSel = document.getElementById("dob-year");
     if (!daySel || !monthSel || !yearSel) return;
-    daySel.innerHTML = '<option value="">Day</option>' + Array.from({length:31},(_,i)=>`<option value="${String(i+1).padStart(2,'0')}">${i+1}</option>`).join('');
+
+    daySel.innerHTML = '<option value="">Day</option>' +
+      Array.from({length:31},(_,i)=>`<option value="${String(i+1).padStart(2,'0')}">${i+1}</option>`).join('');
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    monthSel.innerHTML = '<option value="">Month</option>' + months.map((m,i)=>`<option value="${String(i+1).padStart(2,'0')}">${m}</option>`).join('');
-    const thisYear = new Date().getFullYear(); const maxY = thisYear - 16, minY = thisYear - 100;
-    let yOpts = '<option value="">Year</option>'; for (let y = maxY; y >= minY; y--) yOpts += `<option value="${y}">${y}</option>`; yearSel.innerHTML = yOpts;
+    monthSel.innerHTML = '<option value="">Month</option>' +
+      months.map((m,i)=>`<option value="${String(i+1).padStart(2,'0')}">${m}</option>`).join('');
+    const thisYear = new Date().getFullYear();
+    const maxY = thisYear - 16, minY = thisYear - 100;
+    let yOpts = '<option value="">Year</option>';
+    for (let y = maxY; y >= minY; y--) yOpts += `<option value="${y}">${y}</option>`;
+    yearSel.innerHTML = yOpts;
   })();
 
   // Signup
@@ -400,34 +498,48 @@ document.addEventListener("DOMContentLoaded", () => {
     signupForm.addEventListener("submit", (e) => {
       e.preventDefault();
       const email = document.getElementById("email").value;
-      const d = document.getElementById("dob-day").value, m = document.getElementById("dob-month").value, y = document.getElementById("dob-year").value;
-      const dob = (!d||!m||!y) ? "" : `${y}-${m}-${d}`;
+      const dob = (() => {
+        const d = document.getElementById("dob-day").value;
+        const m = document.getElementById("dob-month").value;
+        const y = document.getElementById("dob-year").value;
+        if (!d || !m || !y) return "";
+        return `${y}-${m}-${d}`;
+      })();
       const userData = {
         fname: document.getElementById("fname").value,
         lname: document.getElementById("lname").value,
         email, dob,
         password: document.getElementById("password").value,
       };
+
       fetch(`${API_BASE}/signup`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, credentials: 'include', body: JSON.stringify(userData),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify(userData),
       })
       .then((res) => res.json())
       .then((data) => {
         if (!data.success) throw new Error(data.error || 'Signup failed');
         localStorage.setItem("loggedInEmail", email);
         localStorage.setItem("loggedInName", userData.fname);
-        closeSignup(); updateAuthButtons(); askQuestion();
+        closeSignup();
+        updateAuthButtons();
+        askQuestion();
       })
       .catch((err) => console.error("❌ Signup error:", err));
-    });
 
-    // Prewarm API
-    if (useAPI && !sessionStorage.getItem("apiWarmedUp")) {
-      fetch(`${API_BASE}/api/ask`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, credentials: 'include',
-        body: JSON.stringify({ question: "Hello" }),
-      }).then(() => sessionStorage.setItem("apiWarmedUp", "true")).catch(()=>{});
-    }
+      // prewarm API once per session
+      if (useAPI && !sessionStorage.getItem("apiWarmedUp")) {
+        fetch(`${API_BASE}/api/ask`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: 'include',
+          body: JSON.stringify({ question: "Hello" }),
+        }).then(() => sessionStorage.setItem("apiWarmedUp","true"))
+          .catch(err => console.warn("⚠️ Prewarm failed:", err));
+      }
+    });
   }
 
   // Login
@@ -437,8 +549,11 @@ document.addEventListener("DOMContentLoaded", () => {
       e.preventDefault();
       const email = document.getElementById("login-email").value;
       const password = document.getElementById("login-password").value;
+
       fetch(`${API_BASE}/login`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, credentials: 'include',
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({ email, password }),
       })
       .then((res) => res.json())
@@ -446,7 +561,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (data.success) {
           localStorage.setItem("loggedInEmail", email);
           localStorage.setItem("loggedInName", data.fname);
-          closeModal(); updateAuthButtons();
+          closeModal();
+          updateAuthButtons();
         } else {
           document.getElementById("login-message").textContent = "Invalid email or password.";
         }
@@ -455,18 +571,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Close account menu on outside click / Esc
-  document.addEventListener('click', (e)=>{
-    const wrap = document.querySelector('.account-dropdown');
-    if (!wrap) return;
-    if (!wrap.contains(e.target)) closeAccountMenu();
-  });
-  document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeAccountMenu(); });
-
   updateAuthButtons();
 });
-
-function switchToSignup(){ closeModal(); document.getElementById("signup-modal").style.display = "flex"; }
 
 // Account form
 const emailForm = document.getElementById("email-update-form");
@@ -476,19 +582,32 @@ if (emailForm) {
     const password = document.getElementById("current-password").value;
     const newEmail = document.getElementById("new-email").value;
     const newPassword = document.getElementById("new-password").value;
+
     fetch(`${API_BASE}/update-details`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: 'include',
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: 'include',
       body: JSON.stringify({ password, newEmail, newPassword }),
     })
     .then(res => res.text())
     .then(msg => {
       const status = document.getElementById("update-status");
-      status.textContent = msg; status.style.color = /success/i.test(msg) ? "green" : "red";
-      if (/success/i.test(msg) && newEmail) {
-        localStorage.setItem("loggedInEmail", newEmail);
-        fetch(`${API_BASE}/user-info`, { credentials:'include' })
-          .then(res => res.json())
-          .then(data => { if (data.fname) { localStorage.setItem("loggedInName", data.fname); updateAuthButtons(); } });
+      status.textContent = msg;
+      if (msg.toLowerCase().includes("success")) {
+        status.style.color = "green";
+        if (newEmail) {
+          localStorage.setItem("loggedInEmail", newEmail);
+          fetch(`${API_BASE}/user-info`, { credentials:'include' })
+            .then(res => res.json())
+            .then(data => {
+              if (data.fname) {
+                localStorage.setItem("loggedInName", data.fname);
+                updateAuthButtons();
+              }
+            });
+        }
+      } else {
+        status.style.color = "red";
       }
     });
   });
@@ -501,7 +620,12 @@ if (delBtn) {
     if (!confirm('This will permanently delete your account and saved history. Continue?')) return;
     fetch(`${API_BASE}/account`, { method:'DELETE', credentials:'include' })
       .then(res => res.json())
-      .then(() => { localStorage.removeItem('loggedInEmail'); localStorage.removeItem('loggedInName'); alert('Account deleted.'); window.location.reload(); })
+      .then(() => {
+        localStorage.removeItem('loggedInEmail');
+        localStorage.removeItem('loggedInName');
+        alert('Account deleted.');
+        window.location.reload();
+      })
       .catch(()=> alert('Failed to delete account.'));
   });
 }
@@ -515,7 +639,11 @@ function loadHistory() {
       tbody.innerHTML = "";
       data.forEach((entry) => {
         const tr = document.createElement('tr');
-        ['question','answer','timestamp'].forEach(k => { const td = document.createElement('td'); td.textContent = entry[k] ?? ''; tr.appendChild(td); });
+        ['question','answer','timestamp'].forEach(k => {
+          const td = document.createElement('td');
+          td.textContent = entry[k] ?? '';
+          tr.appendChild(td);
+        });
         tbody.appendChild(tr);
       });
     })
@@ -535,10 +663,13 @@ async function openNews() {
     const items = await res.json();
     const fmt = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '';
     ul.innerHTML = items.map(i => {
-      const date = fmt(i.date); const source = i.source ? ` (${i.source})` : '';
+      const date = fmt(i.date);
+      const source = i.source ? ` (${i.source})` : '';
       return `<li><a href="${i.link}" target="_blank" rel="noopener">${i.title}</a>${source} — ${date}</li>`;
     }).join('');
-  } catch { ul.innerHTML = '<li>Could not load news right now.</li>'; }
+  } catch {
+    ul.innerHTML = '<li>Could not load news right now.</li>';
+  }
 }
 </script>
 </body>

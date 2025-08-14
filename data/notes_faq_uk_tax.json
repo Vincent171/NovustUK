@@ -1,0 +1,7 @@
+[
+  { "q": "AIA headline", "a": "Annual Investment Allowance usually gives 100% tax relief on most plant & machinery (caps apply). Always ask about computers, tools, office furniture.", "source": "https://www.gov.uk/capital-allowances/annual-investment-allowance" },
+  { "q": "Class 2 NI importance", "a": "Class 2 NI counts towards State Pension and some benefits; ensure paid if applicable.", "source": "https://www.gov.uk/self-employed-national-insurance-rates" },
+  { "q": "Payments on account", "a": "If last year’s self assessment bill > £1,000 and <80% at source, HMRC usually sets two payments on account (Jan/Jul). Prior POAs reduce current balancing payment.", "source": "https://www.gov.uk/understand-self-assessment-bill/payments-on-account" },
+  { "q": "Mortgage interest relief (residential)", "a": "Relief given as a tax credit equal to 20% of allowable interest; interest is deductible for the reducer, but relief is capped at 20%.", "source": "https://www.gov.uk/guidance/changes-to-tax-relief-for-residential-landlords-how-its-worked-out" },
+  { "q": "CT due date and filings", "a": "Corporation tax usually due 9 months + 1 day after year end; file CT600 to HMRC; file accounts to Companies House (auth code).", "source": "https://www.gov.uk/company-filing-and-accounts" }
+]
