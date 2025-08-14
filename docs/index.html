@@ -229,8 +229,12 @@ const isLocalPage =
 
 const API_BASE = isLocalPage
   ? "http://localhost:3000"
-  : "https://novustuk.onrender.com";
+  : "https://api.novust.co.uk";
+  //: "https://novustuk.onrender.com";
 
+  // (optional tiny banner so you always know which API you’re hitting)
+  console.log("🔗 API_BASE:", API_BASE);
+  
 /* Utility to verify cookie and set UI — shows alert if blocked */
 function setAuthFromUserInfoOrWarn() {
   return fetch(`${API_BASE}/user-info`, { credentials: 'include' })
