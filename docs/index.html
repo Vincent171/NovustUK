@@ -145,6 +145,10 @@ What is the BIK on an electric car?"></textarea>
     <p class="footer-link">
       <a href="#" onclick="skipSignup()">Continue without saving my replies</a>
     </p>
+    <!-- NEW: link to switch to Login -->
+    <p class="switch-modal-text">
+      Already registered? <a href="#" onclick="switchToLogin()">Log in here</a>
+    </p>
   </div>
 </div>
 
@@ -226,6 +230,24 @@ const isLocalPage =
 const API_BASE = isLocalPage
   ? "http://localhost:3000"
   : "https://novustuk.onrender.com";
+
+/* Utility to verify cookie and set UI — shows alert if blocked */
+function setAuthFromUserInfoOrWarn() {
+  return fetch(`${API_BASE}/user-info`, { credentials: 'include' })
+    .then(r => r.ok ? r.json() : null)
+    .then(u => {
+      if (!u || !u.email) throw new Error('No auth cookie from server');
+      localStorage.setItem("loggedInEmail", u.email);
+      if (u.fname) localStorage.setItem("loggedInName", u.fname);
+      updateAuthButtons();
+      return u;
+    })
+    .catch(err => {
+      console.warn('Auth cookie missing/blocked:', err);
+      alert('Login/Signup succeeded but the session cookie was blocked. Please check browser cookie settings and CORS/ALLOW_ORIGINS on the API.');
+      throw err;
+    });
+}
 
 /* ASK QUESTION */
 function askQuestion() {
@@ -314,6 +336,10 @@ function askQuestion() {
 function showSignup() { document.getElementById("signup-modal").style.display = "flex"; }
 function closeSignup() { document.getElementById("signup-modal").style.display = "none"; }
 function skipSignup() { closeSignup(); hasSignedUp = false; }
+
+/* NEW: modal switchers */
+function switchToSignup() { closeModal(); showSignup(); }
+function switchToLogin() { closeSignup(); openModal('login'); }
 
 function logout() {
   fetch(`${API_BASE}/logout`, { method: 'POST', credentials:'include' })
@@ -521,11 +547,11 @@ document.addEventListener("DOMContentLoaded", () => {
       .then((res) => res.json())
       .then((data) => {
         if (!data.success) throw new Error(data.error || 'Signup failed');
-        localStorage.setItem("loggedInEmail", email);
-        localStorage.setItem("loggedInName", userData.fname);
-        closeSignup();
-        updateAuthButtons();
-        askQuestion();
+        // Verify cookie via /user-info before setting UI (with alert on failure)
+        return setAuthFromUserInfoOrWarn().then(() => {
+          closeSignup();
+          askQuestion();
+        });
       })
       .catch((err) => console.error("❌ Signup error:", err));
 
@@ -558,14 +584,14 @@ document.addEventListener("DOMContentLoaded", () => {
       })
       .then((res) => res.json())
       .then((data) => {
-        if (data.success) {
-          localStorage.setItem("loggedInEmail", email);
-          localStorage.setItem("loggedInName", data.fname);
-          closeModal();
-          updateAuthButtons();
-        } else {
+        if (!data.success) {
           document.getElementById("login-message").textContent = "Invalid email or password.";
+          return;
         }
+        // Verify cookie via /user-info before setting UI (with alert on failure)
+        setAuthFromUserInfoOrWarn()
+          .then(() => { closeModal(); })
+          .catch(() => { /* warning already shown in helper */ });
       })
       .catch((err) => console.error("❌ Login error:", err));
     });

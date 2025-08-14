@@ -83,14 +83,34 @@ app.use(cookieParser());
 const ALLOW = (process.env.ALLOW_ORIGINS || 'http://localhost:3000,https://novustuk.netlify.app')
   .split(',').map(s=>s.trim()).filter(Boolean);
 
+// CORS with visibility
+console.log('[CORS] Allow list:', ALLOW);
+app.use((req, res, next) => {
+  // helpful for CDNs/proxies
+  res.setHeader('Vary', 'Origin');
+  next();
+});
+
 app.use(cors({
   origin(origin, cb){
-    if (!origin) return cb(null, true);               // allow curl/file://
+    if (!origin) {                                  // curl/file://
+      console.log('[CORS] (no origin) → allow');
+      return cb(null, true);
+    }
     const ok = ALLOW.includes(origin);
+    console.log(`[CORS] Origin: ${origin} → ${ok ? 'ALLOW' : 'BLOCK'}`);
     cb(ok ? null : new Error('Not allowed by CORS'), ok);
   },
   credentials: true
 }));
+
+app.use((req, _res, next) => {
+  if (req.method === 'OPTIONS') {
+    console.log(`[CORS] Preflight for ${req.headers.origin} → ${req.headers['access-control-request-method'] || ''}`);
+  }
+  next();
+});
+
 
 // Serve static site locally from /docs (harmless on Render)
 app.use(express.static(path.join(__dirname, 'docs')));
@@ -99,7 +119,13 @@ app.use(express.static(path.join(__dirname, 'docs')));
 const JWT_SECRET = process.env.NOVUST_JWT_SECRET || 'dev-secret-change-me';
 const TOKEN_COOKIE = 'novust_token';
 
+function logSetCookieContext(email) {
+  console.log(`[AUTH] Setting cookie for ${email} | secure=${isProd} sameSite=${isProd ? 'none' : 'lax'}`);
+}
+
+
 function setAuthCookie(res, payload){
+  logSetCookieContext(payload.email);  
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
   res.cookie(TOKEN_COOKIE, token, {
     httpOnly: true,
@@ -140,6 +166,24 @@ app.get('/health/openai', async (_req,res)=>{
   try { const r = await openai.models.list(); res.json({ ok:true, count:r.data?.length||0 }); }
   catch (e){ res.status(500).json({ ok:false, status:e.status, code:e.code, msg:e.message }); }
 });
+
+// ── Debug CORS/Cookies (do NOT expose secrets) ──────────────────────────────
+app.get('/debug/cors', (req, res) => {
+  const origin = req.headers.origin || null;
+  const allowed = origin ? ALLOW.includes(origin) : true;
+  const hasToken = !!req.cookies?.[TOKEN_COOKIE];
+  res.json({
+    now: new Date().toISOString(),
+    origin,
+    allowed,
+    allowList: ALLOW,
+    cookieNames: Object.keys(req.cookies || {}),
+    hasTokenCookie: hasToken,
+    nodeEnv: process.env.NODE_ENV || 'development',
+    dataDir: DATA_DIR
+  });
+});
+
 
 // ── Prompt, notes (RAG), and style ──────────────────────────────────────────
 const SYSTEM_PROMPT = `
