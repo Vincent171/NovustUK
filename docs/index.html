@@ -27,9 +27,35 @@
       display: none;                                 /* shown via JS only   */
     }
     #email-btn:active { transform: translateY(1px); }/* NEW */
+
+    /* make the auth wait overlay independent from .modal-overlay */
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.auth-overlay[hidden] { display: none !important; }
+
+/* extra safety: ensure the spinner overlay is hidden by default */
+#overlay { display: none; }
+
   </style>
 </head>
 <body>
+
+<!-- Wait during signup/login/update details -->
+<div id="auth-wait" class="auth-overlay" hidden>
+  <div class="modal-content" onclick="event.stopPropagation()" style="text-align:center">
+    <h3 id="auth-wait-title" style="margin:0 0 6px">Just a sec…</h3>
+    <div style="font-size:22px;letter-spacing:6px;">• • •</div>
+  </div>
+</div>
+
+
 
 <!-- Top bar -->
 <div class="topbar">
@@ -219,7 +245,17 @@ let questionCount = 0;
 let timerInterval, timeoutHandle;
 let responseTimes = [];
 const icons = ["🧾","💷","💼"];
-const TICK_MS = 500; // reduced CPU load
+//const TICK_MS = 200; // reduced CPU load
+//NEWTIMER
+const DEFAULT_TICK_MS = 200;
+// allow ?tick=300 or localStorage 'tickMs'
+const urlTick = new URLSearchParams(location.search).get('tick');
+const TICK_MS = Number(urlTick) || Number(localStorage.getItem('tickMs')) || DEFAULT_TICK_MS;
+// quick console helpers:
+window.setTick = (ms)=>{ localStorage.setItem('tickMs', String(ms)); location.reload(); };
+window.getTick = ()=> TICK_MS;
+//ENDNEWTIMER
+
 
 // Environment-aware API base
 const isLocalPage =
@@ -252,6 +288,19 @@ function setAuthFromUserInfoOrWarn() {
       throw err;
     });
 }
+
+/*HELPERS FOR CLICKABLE LINKS IN RESPONSE*/
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function safeLinkify(text){
+  // 1) escape everything
+  const esc = escapeHtml(text);
+  // 2) turn bare URLs into links
+  return esc.replace(/(https?:\/\/[^\s)]+)(?=[)\s]|$)/g,
+    '<a href="$1" target="_blank" rel="noopener nofollow">$1</a>');
+}
+
 
 /* ASK QUESTION */
 function askQuestion() {
@@ -306,7 +355,9 @@ function askQuestion() {
 
       const elapsed = ((Date.now() - start) / 1000).toFixed(2);
       responseTimes.push(elapsed);
-      responseBox.textContent = data.answer;
+      //responseBox.textContent = data.answer;
+      responseBox.innerHTML = safeLinkify(data.answer);
+
 
       // Log Q&A (server will attach user from cookie if present)
       fetch(`${API_BASE}/log`, {
@@ -502,6 +553,7 @@ document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeAccount
 
 /* ── Forms & init ─────────────────────────────────────────────── */
 
+/* ── Forms & init ─────────────────────────────────────────────── */
 document.addEventListener("DOMContentLoaded", () => {
   // populate DOB selects
   (function initDOB(){
@@ -527,6 +579,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (signupForm) {
     signupForm.addEventListener("submit", (e) => {
       e.preventDefault();
+      showAuthWait('Creating your account…');
+
       const email = document.getElementById("email").value;
       const dob = (() => {
         const d = document.getElementById("dob-day").value;
@@ -551,13 +605,13 @@ document.addEventListener("DOMContentLoaded", () => {
       .then((res) => res.json())
       .then((data) => {
         if (!data.success) throw new Error(data.error || 'Signup failed');
-        // Verify cookie via /user-info before setting UI (with alert on failure)
         return setAuthFromUserInfoOrWarn().then(() => {
           closeSignup();
           askQuestion();
         });
       })
-      .catch((err) => console.error("❌ Signup error:", err));
+      .catch((err) => console.error("❌ Signup error:", err))
+      .finally(() => hideAuthWait());
 
       // prewarm API once per session
       if (useAPI && !sessionStorage.getItem("apiWarmedUp")) {
@@ -577,6 +631,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (loginForm) {
     loginForm.addEventListener("submit", function (e) {
       e.preventDefault();
+      showAuthWait('Signing you in…');
+
       const email = document.getElementById("login-email").value;
       const password = document.getElementById("login-password").value;
 
@@ -592,73 +648,78 @@ document.addEventListener("DOMContentLoaded", () => {
           document.getElementById("login-message").textContent = "Invalid email or password.";
           return;
         }
-        // Verify cookie via /user-info before setting UI (with alert on failure)
-        setAuthFromUserInfoOrWarn()
+        return setAuthFromUserInfoOrWarn()
           .then(() => { closeModal(); })
           .catch(() => { /* warning already shown in helper */ });
       })
-      .catch((err) => console.error("❌ Login error:", err));
+      .catch((err) => console.error("❌ Login error:", err))
+      .finally(() => hideAuthWait());
     });
   }
 
   updateAuthButtons();
-});
 
-// Account form
-const emailForm = document.getElementById("email-update-form");
-if (emailForm) {
-  emailForm.addEventListener("submit", function (e) {
-    e.preventDefault();
-    const password = document.getElementById("current-password").value;
-    const newEmail = document.getElementById("new-email").value;
-    const newPassword = document.getElementById("new-password").value;
+  // Account form
+  const emailForm = document.getElementById("email-update-form");
+  if (emailForm) {
+    emailForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      showAuthWait('Updating your account…');
 
-    fetch(`${API_BASE}/update-details`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: 'include',
-      body: JSON.stringify({ password, newEmail, newPassword }),
-    })
-    .then(res => res.text())
-    .then(msg => {
-      const status = document.getElementById("update-status");
-      status.textContent = msg;
-      if (msg.toLowerCase().includes("success")) {
-        status.style.color = "green";
-        if (newEmail) {
-          localStorage.setItem("loggedInEmail", newEmail);
-          fetch(`${API_BASE}/user-info`, { credentials:'include' })
-            .then(res => res.json())
-            .then(data => {
-              if (data.fname) {
-                localStorage.setItem("loggedInName", data.fname);
-                updateAuthButtons();
-              }
-            });
-        }
-      } else {
-        status.style.color = "red";
-      }
-    });
-  });
-}
+      const password = document.getElementById("current-password").value;
+      const newEmail = document.getElementById("new-email").value;
+      const newPassword = document.getElementById("new-password").value;
 
-// Delete account
-const delBtn = document.getElementById('delete-account');
-if (delBtn) {
-  delBtn.addEventListener('click', () => {
-    if (!confirm('This will permanently delete your account and saved history. Continue?')) return;
-    fetch(`${API_BASE}/account`, { method:'DELETE', credentials:'include' })
-      .then(res => res.json())
-      .then(() => {
-        localStorage.removeItem('loggedInEmail');
-        localStorage.removeItem('loggedInName');
-        alert('Account deleted.');
-        window.location.reload();
+      fetch(`${API_BASE}/update-details`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify({ password, newEmail, newPassword }),
       })
-      .catch(()=> alert('Failed to delete account.'));
-  });
-}
+      .then(res => res.text())
+      .then(msg => {
+        const status = document.getElementById("update-status");
+        status.textContent = msg;
+        if (msg.toLowerCase().includes("success")) {
+          status.style.color = "green";
+          if (newEmail) {
+            localStorage.setItem("loggedInEmail", newEmail);
+            return fetch(`${API_BASE}/user-info`, { credentials:'include' })
+              .then(res => res.json())
+              .then(data => {
+                if (data.fname) {
+                  localStorage.setItem("loggedInName", data.fname);
+                  updateAuthButtons();
+                }
+              });
+          }
+        } else {
+          status.style.color = "red";
+        }
+      })
+      .catch(err => console.error('❌ Update details error:', err))
+      .finally(() => hideAuthWait());
+    });
+  }
+
+  // Delete account (keep inside DOMContentLoaded so the element exists)
+  const delBtn = document.getElementById('delete-account');
+  if (delBtn) {
+    delBtn.addEventListener('click', () => {
+      if (!confirm('This will permanently delete your account and saved history. Continue?')) return;
+      fetch(`${API_BASE}/account`, { method:'DELETE', credentials:'include' })
+        .then(res => res.json())
+        .then(() => {
+          localStorage.removeItem('loggedInEmail');
+          localStorage.removeItem('loggedInName');
+          alert('Account deleted.');
+          window.location.reload();
+        })
+        .catch(()=> alert('Failed to delete account.'));
+    });
+  }
+}); // <-- ✅ closes DOMContentLoaded
+
 
 // History
 function loadHistory() {
@@ -701,6 +762,21 @@ async function openNews() {
     ul.innerHTML = '<li>Could not load news right now.</li>';
   }
 }
+
+//function wait during signup/login/updatedetails
+
+function showAuthWait(msg='Just a sec…'){
+  const t = document.getElementById('auth-wait-title');
+  if (t) t.textContent = msg;
+  const el = document.getElementById('auth-wait');
+  if (el) el.hidden = false;
+}
+function hideAuthWait(){
+  const el = document.getElementById('auth-wait');
+  if (el) el.hidden = true;
+}
+
+
 </script>
 </body>
 </html>

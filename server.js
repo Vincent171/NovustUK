@@ -27,27 +27,51 @@ const DEFAULT_MODEL = process.env.NOVUST_MODEL || 'gpt-5-thinking';
 const FALLBACK_MODEL = 'gpt-4o-mini';
 
 // ── Email (Resend) — NEW ────────────────────────────────────────────────────
-const { Resend } = require('resend');                      // NEW
-const resend = new Resend(process.env.RESEND_API_KEY);     // NEW
-const MAIL_FROM = process.env.MAIL_FROM || 'Novust <hello@send.novust.co.uk>'; // NEW
-const MAIL_TO   = process.env.MAIL_TO   || 'hello@novust.co.uk';               // NEW
-const esc = s => String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); // NEW
-async function sendMail({ to, subject, text, html, replyTo }) {  // NEW
+const { Resend } = require('resend');
+const resend = new Resend(process.env.RESEND_API_KEY);
+const MAIL_FROM = process.env.MAIL_FROM || 'Novust <hello@send.novust.co.uk>';
+const MAIL_TO   = process.env.MAIL_TO   || 'hello@novust.co.uk'; // optional, not used directly
+
+// HTML escape helper (used in templates)
+const esc = s => String(s || '').replace(/[&<>"]/g, c => (
+  { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]
+));
+
+// Logo header used by all emails
+const EMAIL_HEADER = `
+  <div style="text-align:center;margin-bottom:12px">
+    <img src="https://novust.co.uk/logo.png"
+         alt="Novust" width="140" height="auto"
+         style="max-width:40%;height:auto"/>
+  </div>
+`;
+
+// Email templates (with logo header)
+const welcomeTpl         = (name = '') =>
+  `${EMAIL_HEADER}<h2>Welcome to Novust${name ? `, ${esc(name)}` : ''}!</h2><p>Thanks for signing up. You can save history, email answers to yourself and manage your account anytime.</p>`;
+
+const emailChangedOldTpl = (oldE, newE) =>
+  `${EMAIL_HEADER}<p>Your Novust login email was changed from <b>${esc(oldE)}</b> to <b>${esc(newE)}</b>.</p><p>If this wasn’t you, reply to this email.</p>`;
+
+const emailChangedNewTpl = (newE) =>
+  `${EMAIL_HEADER}<p>Hi ${esc(newE)}, your email has been updated successfully on Novust.</p>`;
+
+const passwordChangedTpl = () =>
+  `${EMAIL_HEADER}<p>Your Novust password was changed successfully.</p><p>If this wasn’t you, reply to this email.</p>`;
+
+// Thin wrapper around Resend
+async function sendMail({ to, subject, text, html, replyTo }) {
   if (!process.env.RESEND_API_KEY) return; // no-op locally if not configured
   await resend.emails.send({
     from: MAIL_FROM,
     to,
     subject,
-    text: text || html?.replace(/<[^>]+>/g,''),
+    text: text || (html ? html.replace(/<[^>]+>/g, '') : ''),
     html,
     reply_to: replyTo
   });
 }
-// simple templates — NEW
-const welcomeTpl         = (name) => `<h2>Welcome to Novust${name?`, ${esc(name)}`:''}!</h2><p>Thanks for signing up. You can save history, email answers to yourself and manage your account anytime.</p>`;
-const emailChangedOldTpl = (oldE, newE) => `<p>Your Novust login email was changed from <b>${esc(oldE)}</b> to <b>${esc(newE)}</b>.</p><p>If this wasn’t you, reply to this email.</p>`;
-const emailChangedNewTpl = (newE) => `<p>Hi ${esc(newE)}, your email has been updated successfully on Novust.</p>`;
-const passwordChangedTpl = () => `<p>Your Novust password was changed successfully.</p><p>If this wasn’t you, reply to this email.</p>`;
+
 
 // ── DBs ─────────────────────────────────────────────────────────────────────
 const db = new Database(path.join(DATA_DIR, 'questions.db')); // Q&A
