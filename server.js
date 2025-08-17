@@ -60,6 +60,7 @@ const passwordChangedTpl = () =>
   `${EMAIL_HEADER}<p>Your Novust password was changed successfully.</p><p>If this wasn’t you, reply to this email.</p>`;
 
 // Thin wrapper around Resend
+/*
 async function sendMail({ to, subject, text, html, replyTo }) {
   if (!process.env.RESEND_API_KEY) return; // no-op locally if not configured
   await resend.emails.send({
@@ -71,6 +72,35 @@ async function sendMail({ to, subject, text, html, replyTo }) {
     reply_to: replyTo
   });
 }
+ DEBUG FUNCTION BELOW */
+
+ async function sendMail({ to, subject, text, html, replyTo }) {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[mail] RESEND_API_KEY not set — skipping send');
+    return { ok:false, reason:'no_api_key' };
+  }
+  try {
+    const resp = await resend.emails.send({
+      from: MAIL_FROM,
+      to,
+      subject,
+      text: text || html?.replace(/<[^>]+>/g,''),
+      html,
+      reply_to: replyTo
+    });
+    console.log('[mail] sent', { id: resp?.id, to, subject });
+    return { ok:true, id: resp?.id };
+  } catch (e) {
+    console.error('[mail] ERROR', {
+      name: e?.name,
+      message: e?.message,
+      status: e?.status,
+      data: e?.response?.data || e?.body || null
+    });
+    throw e;
+  }
+}
+
 
 
 // ── DBs ─────────────────────────────────────────────────────────────────────
@@ -409,8 +439,8 @@ app.post('/signup', async (req, res) => {
     setAuthCookie(res, { email });
     res.json({ success:true, message:'Signup successful' });
 
-    // Welcome email — fire-and-forget
-    sendMail({ to: email, subject: 'Welcome to Novust 👋', html: welcomeTpl(fname||'') }).catch(()=>{});
+    // Welcome email — fire-and-forget  //CHANGEDLINEBELOWATEND - DEBUG
+    sendMail({ to: email, subject: 'Welcome to Novust 👋', html: welcomeTpl(fname||'') }).catch(err => console.error('[mail] send failed', err));
   } catch (e) {
     console.error('signup error:', e);
     res.status(500).json({ error: 'Server error' });
@@ -462,11 +492,20 @@ app.post('/update-details', requireAuth, async (req, res) => {
       Promise.allSettled([
         sendMail({ to: user.email,  subject:'Your Novust email was changed', html: emailChangedOldTpl(user.email, updatedEmail) }),
         sendMail({ to: updatedEmail, subject:'Your Novust email is updated', html: emailChangedNewTpl(updatedEmail) })
-      ]).catch(()=>{});
+      //CHANGEDLINEBELOW - DEBUG
+      ]).catch(err => console.error('[mail] send failed', err));
     }
+    /*OLD ONE REPLACED WITH DEBUG
     if (pwChanged) {
       sendMail({ to: updatedEmail, subject:'Your Novust password was changed', html: passwordChangedTpl() }).catch(()=>{});
     }
+      */
+
+    if (pwChanged) {
+  sendMail({ to: updatedEmail, subject:'Your Novust password was changed', html: passwordChangedTpl() })
+    .catch(err => console.error('[mail] send failed', err));
+}
+
 
     res.send('Update success');
   } catch (e) {
@@ -546,6 +585,40 @@ app.get('/news', async (_req, res) => {
   } catch (e) { res.status(500).json({ error: 'Failed to fetch news' }); }
 });
 
+//DEBUG COMMANDS BOTH SETS BELOW x 2
+// quick view of env values (masked)
+app.get('/debug/mail-status', (req, res) => {
+  const key = process.env.RESEND_API_KEY || '';
+  res.json({
+    hasKey: !!key,
+    keyPreview: key ? key.slice(0,6) + '…' + key.slice(-4) : null,
+    from: MAIL_FROM,
+    to: MAIL_TO,
+    nodeEnv: process.env.NODE_ENV || 'development'
+  });
+});
+
+// actual send test
+app.get('/debug/test-mail', async (req, res) => {
+  try {
+    const to = req.query.to || MAIL_TO;
+    const r = await sendMail({
+      to,
+      subject: 'Novust debug email',
+      html: '<p>If you can read this, Render → Resend works.</p>'
+    });
+    res.json({ ok:true, result:r });
+  } catch (e) {
+    res.status(500).json({
+      ok:false,
+      error: e?.message,
+      data: e?.response?.data || e?.body || null
+    });
+  }
+});
+
 // ── Start ───────────────────────────────────────────────────────────────────
 app.use((err, req, res, next)=>{ console.error('🔥 Unhandled error:', err); if (res.headersSent) return next(err); res.status(500).json({ error:'Server error' }); });
 app.listen(port, ()=> console.log(`🚀 Server running on http://localhost:${port}`));
+
+
