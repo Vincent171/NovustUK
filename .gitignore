@@ -23,3 +23,6 @@ Thumbs.db
 .netlify/
 vercel/
 dist/
+
+# never commit archives
+*.zip
