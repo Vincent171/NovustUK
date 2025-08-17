@@ -347,17 +347,24 @@ function askQuestion() {
       credentials: 'include',
       body: JSON.stringify({ question })
     })
-    .then(res => res.json())
-    .then(data => {
+    .then(async (res) => {
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body || typeof body.answer !== 'string' || !body.answer.trim()) {
+        const msg = (body && body.error) ? body.error : `API error (${res.status})`;
+        throw new Error(msg);
+      }
+      return body;
+    })
+    .then((data) => {
       clearInterval(timerInterval);
       clearTimeout(timeoutHandle);
       overlay.style.display = "none";
 
       const elapsed = ((Date.now() - start) / 1000).toFixed(2);
       responseTimes.push(elapsed);
-      //responseBox.textContent = data.answer;
-      responseBox.innerHTML = safeLinkify(data.answer);
 
+      // Safe linkify only on a real string
+      responseBox.innerHTML = safeLinkify(String(data.answer));
 
       // Log Q&A (server will attach user from cookie if present)
       fetch(`${API_BASE}/log`, {
@@ -372,21 +379,22 @@ function askQuestion() {
       setTimeout(() => logo.classList.remove('pulse'), 600);
       timerText.textContent = `⏱️ Response time: ${elapsed}s`;
 
-      updateEmailBtnVisibility(); // NEW
+      updateEmailBtnVisibility();
     })
     .catch(err => {
       console.error("❌ API call failed:", err);
       clearInterval(timerInterval);
       clearTimeout(timeoutHandle);
       overlay.style.display = "none";
-      responseBox.textContent = "Failed to get a response. Please try again later.";
-      updateEmailBtnVisibility(); // NEW (will hide)
+      responseBox.textContent = `Failed to get a response. ${err.message || 'Please try again later.'}`;
+      updateEmailBtnVisibility();
     });
 
   } catch (error) {
     console.error("🚨 Error in askQuestion():", error);
   }
 }
+
 
 function showSignup() { document.getElementById("signup-modal").style.display = "flex"; }
 function closeSignup() { document.getElementById("signup-modal").style.display = "none"; }
