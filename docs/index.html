@@ -114,8 +114,8 @@
   </div>
 
   <textarea id="questionInput" rows="5" placeholder="e.g. How much tax will I pay on £30k income?
-Can I claim entertaining expenses off my corporation tax?
-What is the BIK on an electric car?"></textarea>
+Do I have to repay my child benefit?
+Do I pay tax on a company car if it is electric?"></textarea>
 
   <div style="text-align: center;">
     <button onclick="askQuestion()" id="askBtn">Ask</button>
@@ -124,7 +124,7 @@ What is the BIK on an electric car?"></textarea>
   <div id="answer-box">
     <div id="response">
       <div id="answer-text"></div>
-      <button id="email-btn" onclick="emailMe" title="Email this answer to me">✉️ Email me</button><!-- unchanged -->
+      <button id="email-btn" onclick="emailMe()" title="Email this answer to me">✉️ Email me</button>
       <button onclick="copyAnswer()" class="copy-btn">⧉ Copy</button>
     </div>
     <p id="timer"></p>
@@ -167,7 +167,9 @@ What is the BIK on an electric car?"></textarea>
         <select id="dob-year" required></select>
       </div>
 
-      <input type="password" id="password" placeholder="Password" required><br>
+      <input type="password" id="password" placeholder="Password" required minlength="8" pattern="(?=.*\d).{8,}" title="At least 8 characters and include a number"><br>
+      <small style="color:#6b7280">Password must be at least 8 characters and include a number.</small>
+
       <button type="submit">Sign Up</button>
     </form>
     <p class="footer-link">
@@ -197,12 +199,44 @@ What is the BIK on an electric car?"></textarea>
       <button type="submit">Login</button>
     </form>
     <p id="login-message" style="color: red;"></p>
-    <p class="switch-modal-text">
-      Not registered? <a href="#" onclick="switchToSignup()">Sign up here</a>
-    </p>
+<p class="switch-modal-text">
+  <a href="#" onclick="openForgot()">Forgot password?</a>
+</p>
+<p class="switch-modal-text">
+  Not registered? <a href="#" onclick="switchToSignup()">Sign up here</a>
+</p>
+
     <p class="footer-link"><a href="#" onclick="closeModal()">Close</a></p>
   </div>
 </div>
+
+<!-- Forgot Password Modal -->
+<div id="forgot-modal" class="modal-overlay" onclick="closeModal(event)" style="display:none;">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h3>Reset your password</h3>
+    <p>Enter the email you used to sign up. We’ll send you a 6‑digit code.</p>
+    <input type="email" id="forgot-email" placeholder="your@email.com" />
+    <button onclick="submitForgot()">Send code</button>
+    <p id="forgot-status" style="margin-top:8px;"></p>
+    <p class="footer-link"><a href="#" onclick="closeModal()">Close</a></p>
+  </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div id="reset-modal" class="modal-overlay" onclick="closeModal(event)" style="display:none;">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h3>Enter your reset code</h3>
+    <p>Check your email for a 6‑digit code. Paste it below, then choose a new password.</p>
+    <input type="email" id="reset-email" placeholder="your@email.com" />
+    <input type="text" id="reset-code" placeholder="6‑digit code" inputmode="numeric" maxlength="6" />
+    <input type="password" id="reset-new" placeholder="New password" minlength="8" pattern="(?=.*\d).{8,}" title="At least 8 characters and include a number" />
+    <button onclick="submitReset()">Reset password</button>
+    <p id="reset-status" style="margin-top:8px;"></p>
+    <p class="footer-link"><a href="#" onclick="closeModal()">Close</a></p>
+  </div>
+</div>
+
+
 
 <!-- Account Modal -->
 <div id="account-modal" class="modal-overlay" onclick="closeModal(event)">
@@ -211,7 +245,9 @@ What is the BIK on an electric car?"></textarea>
     <form id="email-update-form">
       <input type="password" id="current-password" placeholder="Current password" required><br>
       <input type="email" id="new-email" placeholder="New email (optional)"><br>
-      <input type="password" id="new-password" placeholder="New password (optional)"><br>
+      <input type="password" id="new-password" placeholder="New password (optional)" minlength="8" pattern="(?=.*\d).{8,}" title="At least 8 characters and include a number"><br>
+      <small style="color:#6b7280">Leave blank to keep your current password. If changing, use at least 8 characters and include a number.</small>
+
       <button type="submit">Update Details</button>
     </form>
     <hr style="margin: 12px 0; opacity:.3">
@@ -515,7 +551,7 @@ function openModal(type) {
   if (type === "privacy") {
     document.getElementById("modal-text").innerHTML = `
       <h3>Privacy Policy</h3>
-      <p>Last updated: July 2025</p>
+      <p>Last updated: August 2025</p>
       <p>At <strong>Novust Ltd</strong>, we take your privacy seriously. This policy outlines how we collect, use, and protect your information when using our UK AI Tax Assistant.</p>
       <h4>1. Information We Collect</h4>
       <ul>
@@ -538,7 +574,7 @@ function openModal(type) {
         <li>Access/update your information via "My Account".</li>
         <li>Request account or data deletion.</li>
       </ul>
-      <p>Contact: <a href="mailto:privacy@novust.com">privacy@novust.com</a>.</p>
+      <p>Contact: <a href="mailto:hello@novust.co.uk">hello@novust.co.uk</a>.</p>
     `;
     document.getElementById("modal-overlay").style.display = "flex";
     return;
@@ -547,7 +583,7 @@ function openModal(type) {
   if (type === "terms") {
     document.getElementById("modal-text").innerHTML = `
       <h3>Terms & Conditions</h3>
-      <p>Last updated: July 2025</p>
+      <p>Last updated: August 2025</p>
       <p>By using <strong>Novust Ltd</strong>, you agree to:</p>
       <ul>
         <li>Use the service lawfully and keep your login secure.</li>
@@ -555,7 +591,7 @@ function openModal(type) {
       </ul>
       <p>We may update/modify/suspend services for maintenance or security.</p>
       <p>Company content/code remain our IP.</p>
-      <p>Support: <a href="mailto:support@novust.com">support@novust.com</a>.</p>
+      <p>Support: <a href="mailto:hello@novust.co.uk">hello@novust.co.uk</a>.</p>
     `;
     document.getElementById("modal-overlay").style.display = "flex";
     return;
@@ -647,6 +683,12 @@ document.addEventListener("DOMContentLoaded", () => {
         password: document.getElementById("password").value,
       };
 
+      if (!/(?=.*\d).{8,}/.test(userData.password)) {
+  alert('Password must be at least 8 characters and include a number.');
+  hideAuthWait();
+  return;
+}
+
       fetch(`${API_BASE}/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -721,6 +763,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const newEmail = document.getElementById("new-email").value;
       const newPassword = document.getElementById("new-password").value;
 
+      if (newPassword && !/(?=.*\d).{8,}/.test(newPassword)) {
+  alert('New password must be at least 8 characters and include a number.');
+  hideAuthWait();
+  return;
+}
+
+
+
       fetch(`${API_BASE}/update-details`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -793,6 +843,69 @@ function loadHistory() {
       tbody.innerHTML = '<tr><td colspan="3">Could not load history.</td></tr>';
     });
 }
+
+/* ── Forgot / Reset password (Resend-backed) ─────────────────────────────── */
+function openForgot(){
+  // Prefill with login email if present
+  const modal = document.getElementById('forgot-modal');
+  const inp = document.getElementById('forgot-email');
+  const logged = localStorage.getItem('loggedInEmail');
+  if (logged) inp.value = logged;
+  document.getElementById('forgot-status').textContent = '';
+  modal.style.display = 'flex';
+}
+
+function submitForgot(){
+  const email = (document.getElementById('forgot-email').value || '').trim();
+  const status = document.getElementById('forgot-status');
+  if (!email) { status.style.color = '#dc2626'; status.textContent = 'Please enter your email.'; return; }
+  status.style.color = '#374151'; status.textContent = 'Sending…';
+  fetch(`${API_BASE}/auth/forgot`, {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email })
+  })
+  .then(r => r.json())
+  .then(() => {
+    status.style.color = '#059669';
+    status.textContent = 'Code sent! Check your inbox.';
+    // Open reset modal with email prefilled
+    setTimeout(() => {
+      document.getElementById('forgot-modal').style.display = 'none';
+      const em = document.getElementById('reset-email'); em.value = email;
+      document.getElementById('reset-status').textContent = '';
+      document.getElementById('reset-modal').style.display = 'flex';
+    }, 600);
+  })
+  .catch(() => { status.style.color = '#dc2626'; status.textContent = 'Could not send right now.'; });
+}
+
+function submitReset(){
+  const email = (document.getElementById('reset-email').value || '').trim();
+  const code = (document.getElementById('reset-code').value || '').trim();
+  const newPassword = (document.getElementById('reset-new').value || '');
+  const status = document.getElementById('reset-status');
+
+  if (!email || !code || !newPassword) {
+    status.style.color = '#dc2626'; status.textContent = 'Please complete all fields.'; return;
+  }
+  if (!/(?=.*\d).{8,}/.test(newPassword)) {
+    status.style.color = '#dc2626'; status.textContent = 'Password must be at least 8 characters and include a number.'; return;
+  }
+
+  status.style.color = '#374151'; status.textContent = 'Resetting…';
+  fetch(`${API_BASE}/auth/reset`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ email, code, newPassword })
+  })
+  .then(r => r.json())
+  .then(j => {
+    if (!j.ok) throw new Error(j.error || 'Failed');
+    status.style.color = '#059669'; status.textContent = 'Password updated. You can now log in.';
+    setTimeout(() => { document.getElementById('reset-modal').style.display = 'none'; openModal('login'); }, 900);
+  })
+  .catch(err => { status.style.color = '#dc2626'; status.textContent = err.message || 'Could not reset right now.'; });
+}
+
+
 
 // News
 

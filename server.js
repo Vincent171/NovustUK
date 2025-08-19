@@ -41,12 +41,21 @@ const esc = s => String(s || '').replace(/[&<>"]/g, c => (
 
 // Logo header used by all emails
 const EMAIL_HEADER = `
-  <div style="text-align:center;margin-bottom:12px">
-    <img src="https://novust.co.uk/logo.png"
-         alt="Novust" width="140" height="auto"
-         style="max-width:40%;height:auto"/>
+  <div style="text-align:left;margin:0 0 12px 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;">
+    <a href="https://novust.co.uk" target="_blank" style="text-decoration:none;color:#0a6cf1;display:block;margin-bottom:6px;">
+      <img src="https://novust.co.uk/logo.png"
+           alt="Novust" width="140" height="auto"
+           style="display:block;height:auto;border:0;outline:none;text-decoration:none"/>
+    </a>
+    <a href="https://novust.co.uk" target="_blank" style="text-decoration:none;color:#0a6cf1;">
+      Novust
+    </a>
   </div>
 `;
+
+
+
+
 
 // Email templates (with logo header)
 const welcomeTpl         = (name = '') =>
@@ -64,6 +73,19 @@ const passwordChangedTpl = () =>
 // NEW: wait list confirmation template
 const waitlistConfirmTpl = (email) =>
   `${EMAIL_HEADER}<h3>You're on the Beta Wait List</h3><p>Thanks for your interest, <b>${esc(email)}</b>! We’ll notify you as soon as the beta is ready.</p>`;
+
+const resetCodeTpl = (email, code) =>
+  `${EMAIL_HEADER}
+   <h3>Password reset</h3>
+   <p>We received a request to reset your Novust password for <b>${esc(email)}</b>.</p>
+   <p><b>Your reset code is: ${esc(code)}</b></p>
+   <p>This code will expire in 15 minutes.</p>
+   <p>If you didn’t request this, you can ignore this email.</p>`;
+
+/* ============================== STATE FLAGS =============================== */
+// Track whether this is the first question since process boot
+let firstAnswerServed = false;
+
 
 /* --------------------------- SENDMAIL IMPLEMENTATION ---------------------- */
 async function sendMail({ to, subject, text, html, replyTo }) {
@@ -118,6 +140,16 @@ userDB.prepare(`
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `).run();
+
+// Password reset codes (6-digit) with expiry
+userDB.prepare(`
+  CREATE TABLE IF NOT EXISTS password_resets (
+    email   TEXT NOT NULL,
+    code    TEXT NOT NULL,
+    expires DATETIME NOT NULL
+  )
+`).run();
+
 
 /* ====================== NEW: BETA WAIT LIST DATABASE ====================== */
 // STORAGE: Separate DB for wait list (simple & clean separation)
@@ -209,6 +241,18 @@ function requireAuth(req, res, next){
     return res.status(401).json({ error: 'Auth required' });
   }
 }
+
+/* =========================== PASSWORD VALIDATION ========================== */
+// Minimum 8 characters, must include at least one number
+function validatePassword(pw) {
+  return typeof pw === 'string' && /^(?=.*\d).{8,}$/.test(pw);
+}
+
+/* ============================== EMAIL NORMALISER ========================== */ // ★ NEW
+function normEmail(s) {
+  return String(s || '').trim().toLowerCase();
+}
+
 
 /* ================================ HEALTH ================================== */
 // CALL ROUTES: Health / Diagnostics
@@ -414,8 +458,15 @@ app.post('/api/ask', async (req, res) => {
     answer = answer.replace(/\*\*Disclaimer\*\*:.*$/is, '').trim();
 
     // Intro + post-process (adds greeting correctly)
-    //answer = 'Below is the answer you need:\n\n' + postProcess(answer, recipientName);
-    answer = 'Thanks for choosing me to help. Please note I am a working model for testing purposes only right now. Exciting news however, the team behind me are working hard to update me to provide a more tailored and individual response as an actual boring accountant in the future, well not that exciting but is to me.\n\nFor now below is the answer you need:\n\n' + postProcess(answer, recipientName);
+// Only show long intro once per server process (first Q after page load)
+if (!firstAnswerServed) {
+  answer = 'Thanks for choosing me to help. I am a working model for testing purposes only right now. Exciting news however, the team behind me are working hard to update me to provide a more tailored and individual response as an actual boring accountant in the future, well not that exciting but is to me.\n\nFor now below is the answer you need:\n\n' 
+         + postProcess(answer, recipientName);
+  firstAnswerServed = true;
+} else {
+  answer = 'Novust Model Version - Alpha 1.6.4\n\n' + postProcess(answer, recipientName);
+}
+
     if (!answer.trim()) answer = 'Sorry — I couldn’t generate an answer.';
     return res.json({ answer });
   } catch (err) {
@@ -446,17 +497,22 @@ app.post('/log', (req, res) => {
 // CALL ROUTES: Signup / Login / Logout / Update details / Delete account
 app.post('/signup', async (req, res) => {
   try {
-    const { fname, lname, email, dob, password } = req.body;
+    const { fname, lname, email:rawEmail, dob, password } = req.body; // ★ normalise
+    const email = normEmail(rawEmail); // ★
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+    if (!validatePassword(password)) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters and include a number.' });
+    }
+
     const pwHash = await bcrypt.hash(password, 12);
     try {
       userDB.prepare('INSERT INTO users (email, fname, lname, dob, password_hash) VALUES (?,?,?,?,?)')
-        .run(email, fname||'', lname||'', dob||'', pwHash);
+        .run(email, fname||'', lname||'', dob||'', pwHash); // ★ email
     } catch (e) {
       if (String(e).includes('UNIQUE')) return res.status(409).json({ success:false, error:'Email already registered' });
       throw e;
     }
-    setAuthCookie(res, { email });
+    setAuthCookie(res, { email }); // ★ email
     res.json({ success:true, message:'Signup successful' });
 
     // Welcome email — fire-and-forget
@@ -469,7 +525,8 @@ app.post('/signup', async (req, res) => {
 
 app.post('/login', (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = normEmail(req.body?.email); // ★
+    const password = req.body?.password;      // ★
     if (!email || !password) return res.status(400).json({ error:'Email and password are required' });
     const row = userDB.prepare('SELECT email, fname, password_hash FROM users WHERE email=?').get(email);
     if (!row) return res.json({ success:false });
@@ -490,7 +547,10 @@ app.post('/logout', (req, res)=>{
 
 app.post('/update-details', requireAuth, async (req, res) => {
   try {
-    const { password, newEmail, newPassword } = req.body;
+    const password = req.body?.password;
+    const newEmail = normEmail(req.body?.newEmail || ''); // ★
+    const newPassword = req.body?.newPassword;
+
     const user = userDB.prepare('SELECT email, password_hash FROM users WHERE email=?').get(req.user.email);
     if (!user) return res.status(404).send('Account not found');
     if (!bcrypt.compareSync(password, user.password_hash)) return res.status(401).send('Incorrect password');
@@ -499,7 +559,14 @@ app.post('/update-details', requireAuth, async (req, res) => {
     let emailChanged = false, pwChanged = false;
 
     if (newEmail && newEmail !== user.email) { updates.push('email=?'); params.push(newEmail); updatedEmail = newEmail; emailChanged = true; }
-    if (newPassword) { const hash = await bcrypt.hash(newPassword, 12); updates.push('password_hash=?'); params.push(hash); pwChanged = true; }
+    if (newPassword) {
+      if (!validatePassword(newPassword)) {
+      return res.status(400).send('New password must be at least 8 characters and include a number.');
+    }
+    const hash = await bcrypt.hash(newPassword, 12);
+    updates.push('password_hash=?'); params.push(hash); pwChanged = true;
+    }
+
     params.push(user.email);
 
     if (updates.length) {
@@ -538,6 +605,78 @@ app.delete('/account', requireAuth, (req, res) => {
     res.status(500).json({ error:'Failed to delete account' });
   }
 });
+
+// CALL ROUTES: Request password reset code (logged-out OK)
+app.post('/auth/forgot', async (req, res) => {
+  try {
+    const email = normEmail(req.body?.email || ''); // ★
+    if (!email) return res.status(400).json({ ok:false, error: 'Email is required' });
+
+    // Only proceed if user exists (avoid enumeration in response content)
+    const exists = userDB.prepare('SELECT 1 FROM users WHERE email=?').get(email);
+    if (exists) {
+      // purge expired (housekeeping) ★
+      userDB.prepare('DELETE FROM password_resets WHERE expires < ?').run(new Date().toISOString());
+
+      const code = String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
+      const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      // Clear any prior codes for this email
+      userDB.prepare('DELETE FROM password_resets WHERE email=?').run(email);
+      userDB.prepare('INSERT INTO password_resets (email, code, expires) VALUES (?,?,?)').run(email, code, expires);
+
+      // fire-and-forget email
+      sendMail({
+        to: email,
+        subject: 'Your Novust password reset code',
+        html: resetCodeTpl(email, code)
+      }).catch(err => console.error('[mail] reset code send failed', err));
+    }
+    // Always say OK to avoid email enumeration
+    return res.json({ ok:true });
+  } catch (e) {
+    console.error('/auth/forgot error', e);
+    return res.status(500).json({ ok:false, error:'Server error' });
+  }
+});
+
+// CALL ROUTES: Complete password reset (logged-out OK)
+// Body: { email, code, newPassword }
+app.post('/auth/reset', async (req, res) => {
+  try {
+    const email = normEmail(req.body?.email || ''); // ★
+    const code = String(req.body?.code || '').trim();
+    const newPassword = String(req.body?.newPassword || '');
+
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ ok:false, error: 'Email, code and new password are required' });
+    }
+    if (!validatePassword(newPassword)) {
+      return res.status(400).json({ ok:false, error: 'Password must be at least 8 characters and include a number.' });
+    }
+
+    const row = userDB.prepare('SELECT expires FROM password_resets WHERE email=? AND code=?').get(email, code);
+    if (!row) return res.status(400).json({ ok:false, error: 'Invalid code' });
+    if (new Date(row.expires).getTime() < Date.now()) {
+      userDB.prepare('DELETE FROM password_resets WHERE email=?').run(email);
+      return res.status(400).json({ ok:false, error: 'Code expired' });
+    }
+
+    const hash = await bcrypt.hash(newPassword, 12);
+    userDB.prepare('UPDATE users SET password_hash=? WHERE email=?').run(hash, email);
+    userDB.prepare('DELETE FROM password_resets WHERE email=?').run(email);
+
+    // Notify user
+    sendMail({ to: email, subject: 'Your Novust password was changed', html: passwordChangedTpl() })
+      .catch(err => console.error('[mail] send failed', err));
+
+    return res.json({ ok:true });
+  } catch (e) {
+    console.error('/auth/reset error', e);
+    return res.status(500).json({ ok:false, error:'Server error' });
+  }
+});
+
+
 
 /* ============================ PROTECTED DATA APIS ========================= */
 // CALL ROUTES: History & User Info
@@ -582,9 +721,9 @@ app.post('/email/me-answer', requireAuth, async (req, res) => {
 // Body: { email: string, source?: string }
 app.post('/beta-waitlist', async (req, res) => {
   try {
-    const bodyEmail = (req.body?.email || '').trim();
-    const userEmail = req.user?.email || null;
-    const email = bodyEmail || userEmail || '';
+    const bodyEmail = normEmail(req.body?.email || '');     // ★
+    const userEmail = normEmail(req.user?.email || '');     // ★
+    const email = bodyEmail || userEmail || '';             // ★
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ ok:false, error:'Valid email is required' });
     }
