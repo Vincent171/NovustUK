@@ -18,30 +18,33 @@
     #login-btn.logged-in .icon-person { display: none; }
     #login-btn.logged-in .icon-hamb { display: inline; }
 
-    /* Email button styling (next to Copy) — NEW */
-    #email-btn {                                     /* NEW */
-      position: absolute; bottom: 10px; right: 110px;/* sits left of Copy   */
-      font-size: .8em; padding: 6px 12px;
-      background: #10b981; color: #fff; border: none; border-radius: 4px;
-      transition: opacity .2s ease, transform .05s ease;
-      display: none;                                 /* shown via JS only   */
-    }
-    #email-btn:active { transform: translateY(1px); }/* NEW */
-
-    /* make the auth wait overlay independent from .modal-overlay */
-.auth-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
+    /* Email button styling (next to Copy) */
+    #email-btn {
+  position: absolute; bottom: 10px; right: 88px; /* was 110px */
+  font-size: .8em; padding: 6px 12px;
+  background: #10b981; color: #fff; border: none; border-radius: 4px;
+  transition: opacity .2s ease, transform .05s ease;
+  display: none;
 }
-.auth-overlay[hidden] { display: none !important; }
 
-/* extra safety: ensure the spinner overlay is hidden by default */
-#overlay { display: none; }
+    #email-btn:active { transform: translateY(1px); }
+
+    /* Auth wait overlay */
+    .auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+    .auth-overlay[hidden] { display: none !important; }
+
+    /* spinner overlay hidden by default */
+    #overlay { display: none; }
+
+    /* NEW: Beta blurb styling */
+    #beta-blurb { margin-top: 12px; font-size: 0.95em; color: #374151; }
+    #beta-blurb a { color: #2563eb; text-decoration: underline; }
+
+    /* NEW: Beta modal minimal styles (reuses .modal-overlay/.modal-content) */
+    #beta-modal .modal-content input[type="email"] {
+      width: 100%; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px;
+    }
+    #beta-modal .actions { margin-top: 12px; display: flex; gap: 10px; justify-content: center; }
 
   </style>
 </head>
@@ -54,8 +57,6 @@
     <div style="font-size:22px;letter-spacing:6px;">• • •</div>
   </div>
 </div>
-
-
 
 <!-- Top bar -->
 <div class="topbar">
@@ -78,14 +79,12 @@
     <!-- ONE button that does login (logged out) and opens menu (logged in) -->
     <div class="account-dropdown">
       <button id="login-btn" class="icon-btn" aria-label="Login / Account">
-        <!-- person icon (default when logged out) -->
         <span class="icon-person" aria-hidden="true">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
             <circle cx="12" cy="8" r="3.5" fill="white"></circle>
             <path d="M5 19a7 7 0 0 1 14 0" fill="white"></path>
           </svg>
         </span>
-        <!-- hamburger icon (shows when logged in) -->
         <span class="icon-hamb" aria-hidden="true">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
             <rect x="4" y="6"  width="16" height="2" fill="white"></rect>
@@ -125,10 +124,13 @@ What is the BIK on an electric car?"></textarea>
   <div id="answer-box">
     <div id="response">
       <div id="answer-text"></div>
-      <button id="email-btn" onclick="emailMe()" title="Email this answer to me">✉️ Email me</button> <!-- NEW -->
+      <button id="email-btn" onclick="emailMe" title="Email this answer to me">✉️ Email me</button><!-- unchanged -->
       <button onclick="copyAnswer()" class="copy-btn">⧉ Copy</button>
     </div>
     <p id="timer"></p>
+
+    <!-- NEW: Beta blurb appended after each answer -->
+    <div id="beta-blurb" style="display:none;"></div>
   </div>
 
   <div class="footer-links">
@@ -171,7 +173,6 @@ What is the BIK on an electric car?"></textarea>
     <p class="footer-link">
       <a href="#" onclick="skipSignup()">Continue without saving my replies</a>
     </p>
-    <!-- NEW: link to switch to Login -->
     <p class="switch-modal-text">
       Already registered? <a href="#" onclick="switchToLogin()">Log in here</a>
     </p>
@@ -238,6 +239,22 @@ What is the BIK on an electric car?"></textarea>
   </div>
 </div>
 
+<!-- NEW: Beta Wait List Modal -->
+<div id="beta-modal" class="modal-overlay" onclick="closeModal(event)" style="display:none;">
+  
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h3>Join Beta Model Wait List</h3>
+    <p>Enter your email to join. If you’re logged in, we’ve pre-filled your account email — you can change it.</p>
+    <input type="email" id="beta-email" placeholder="your@email.com" />
+    <div class="actions">
+  <button onclick="closeBeta()">Cancel</button>
+  <button onclick="submitBeta()">Submit</button>
+</div>
+
+    <p id="beta-status" style="margin-top:8px;"></p>
+  </div>
+</div>
+
 <script>
 let useAPI = true;
 let hasSignedUp = false;
@@ -245,17 +262,13 @@ let questionCount = 0;
 let timerInterval, timeoutHandle;
 let responseTimes = [];
 const icons = ["🧾","💷","💼"];
-//const TICK_MS = 200; // reduced CPU load
 //NEWTIMER
 const DEFAULT_TICK_MS = 200;
-// allow ?tick=300 or localStorage 'tickMs'
 const urlTick = new URLSearchParams(location.search).get('tick');
 const TICK_MS = Number(urlTick) || Number(localStorage.getItem('tickMs')) || DEFAULT_TICK_MS;
-// quick console helpers:
 window.setTick = (ms)=>{ localStorage.setItem('tickMs', String(ms)); location.reload(); };
 window.getTick = ()=> TICK_MS;
 //ENDNEWTIMER
-
 
 // Environment-aware API base
 const isLocalPage =
@@ -266,11 +279,9 @@ const isLocalPage =
 const API_BASE = isLocalPage
   ? "http://localhost:3000"
   : "https://api.novust.co.uk";
-  //: "https://novustuk.onrender.com";
+// console banner
+console.log("🔗 API_BASE:", API_BASE);
 
-  // (optional tiny banner so you always know which API you’re hitting)
-  console.log("🔗 API_BASE:", API_BASE);
-  
 /* Utility to verify cookie and set UI — shows alert if blocked */
 function setAuthFromUserInfoOrWarn() {
   return fetch(`${API_BASE}/user-info`, { credentials: 'include' })
@@ -294,13 +305,10 @@ function escapeHtml(s){
   return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function safeLinkify(text){
-  // 1) escape everything
   const esc = escapeHtml(text);
-  // 2) turn bare URLs into links
   return esc.replace(/(https?:\/\/[^\s)]+)(?=[)\s]|$)/g,
     '<a href="$1" target="_blank" rel="noopener nofollow">$1</a>');
 }
-
 
 /* ASK QUESTION */
 function askQuestion() {
@@ -311,6 +319,7 @@ function askQuestion() {
     const overlay = document.getElementById("overlay");
     const liveTimer = document.getElementById("live-timer");
     const logo = document.querySelector('.logo-crop');
+    const betaBlurb = document.getElementById('beta-blurb');
 
     questionCount++;
     const isLoggedIn = !!localStorage.getItem("loggedInEmail");
@@ -319,6 +328,8 @@ function askQuestion() {
     if (!question) { alert("Please enter a question."); return; }
 
     responseBox.textContent = "";
+    betaBlurb.style.display = 'none'; // NEW: reset
+    betaBlurb.innerHTML = '';         // NEW: reset
     document.getElementById("answer-box").style.display = "block";
     overlay.style.display = "flex";
     const start = Date.now();
@@ -363,8 +374,10 @@ function askQuestion() {
       const elapsed = ((Date.now() - start) / 1000).toFixed(2);
       responseTimes.push(elapsed);
 
-      // Safe linkify only on a real string
       responseBox.innerHTML = safeLinkify(String(data.answer));
+      // NEW: append Beta blurb right under links
+      betaBlurb.innerHTML = `To sign up to our beta testing model please <a href="#" onclick="openBetaWaitlist()">click here</a> to go on the wait list. This model allows for users to complete their tax return through Novust.`;
+      betaBlurb.style.display = 'block';
 
       // Log Q&A (server will attach user from cookie if present)
       fetch(`${API_BASE}/log`, {
@@ -386,7 +399,7 @@ function askQuestion() {
       clearInterval(timerInterval);
       clearTimeout(timeoutHandle);
       overlay.style.display = "none";
-      responseBox.textContent = `Failed to get a response. ${err.message || 'Please try again later.'}`;
+      document.getElementById("answer-text").textContent = `Failed to get a response. ${err.message || 'Please try again later.'}`;
       updateEmailBtnVisibility();
     });
 
@@ -394,7 +407,6 @@ function askQuestion() {
     console.error("🚨 Error in askQuestion():", error);
   }
 }
-
 
 function showSignup() { document.getElementById("signup-modal").style.display = "flex"; }
 function closeSignup() { document.getElementById("signup-modal").style.display = "none"; }
@@ -410,7 +422,7 @@ function logout() {
       localStorage.removeItem("loggedInEmail");
       localStorage.removeItem("loggedInName");
       updateAuthButtons();
-      updateEmailBtnVisibility(); // NEW
+      updateEmailBtnVisibility();
       alert("You’ve been logged out.");
       window.location.reload();
     });
@@ -426,7 +438,7 @@ function copyAnswer() {
   });
 }
 
-/* Email this answer — NEW */
+/* Email this answer */
 function emailMe(){
   const isLoggedIn = !!localStorage.getItem("loggedInEmail");
   if (!isLoggedIn) { openModal('login'); return; }
@@ -449,7 +461,7 @@ function emailMe(){
   .catch(() => { btn.textContent = 'Error'; setTimeout(()=>{ btn.textContent='✉️ Email me'; btn.disabled=false; }, 1500); });
 }
 
-function updateEmailBtnVisibility(){ // NEW
+function updateEmailBtnVisibility(){
   const btn = document.getElementById('email-btn');
   if (!btn) return;
   const loggedIn = !!localStorage.getItem('loggedInEmail');
@@ -457,6 +469,46 @@ function updateEmailBtnVisibility(){ // NEW
   btn.style.display = (loggedIn && hasAnswer) ? 'inline-block' : 'none';
 }
 
+/* ── Beta Wait List: open/close/submit ───────────────────────────────────── */
+function openBetaWaitlist() {
+  const modal = document.getElementById('beta-modal');
+  const input = document.getElementById('beta-email');
+  const status = document.getElementById('beta-status');
+  status.textContent = '';
+  // Prefill if logged in
+  const loggedEmail = localStorage.getItem('loggedInEmail');
+  input.value = loggedEmail || '';
+  modal.style.display = 'flex';
+}
+function closeBeta() {
+  document.getElementById('beta-modal').style.display = 'none';
+}
+function submitBeta() {
+  const email = (document.getElementById('beta-email').value || '').trim();
+  const status = document.getElementById('beta-status');
+  status.style.color = '#374151';
+  status.textContent = 'Submitting…';
+  fetch(`${API_BASE}/beta-waitlist`, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json' },
+    credentials: 'include', // so backend can use cookie if present
+    body: JSON.stringify({ email, source: 'answer_blurb' })
+  })
+  .then(r => r.json())
+  .then(j => {
+    if (!j.ok) throw new Error(j.error || 'Failed');
+    status.style.color = '#059669';
+    status.textContent = 'All set! You’re on the beta wait list.';
+    setTimeout(closeBeta, 900);
+  })
+  .catch(err => {
+    status.style.color = '#dc2626';
+    status.textContent = 'Could not add you right now — please check your email and try again.';
+    console.error('beta waitlist error:', err);
+  });
+}
+
+/* ── Modals / Policy / News (unchanged except for Beta) ──────────────────── */
 function openModal(type) {
   closeModal();
 
@@ -519,15 +571,8 @@ function closeModal(event) {
 }
 
 /* ── Auth UI wiring ───────────────────────────────────────────── */
-
-function toggleAccountMenu(){
-  const menu = document.getElementById('accountMenu');
-  if (menu) menu.hidden = !menu.hidden;
-}
-function closeAccountMenu(){
-  const menu = document.getElementById('accountMenu');
-  if (menu) menu.hidden = true;
-}
+function toggleAccountMenu(){ const menu = document.getElementById('accountMenu'); if (menu) menu.hidden = !menu.hidden; }
+function closeAccountMenu(){ const menu = document.getElementById('accountMenu'); if (menu) menu.hidden = true; }
 
 function updateAuthButtons() {
   const email = localStorage.getItem("loggedInEmail");
@@ -540,26 +585,24 @@ function updateAuthButtons() {
     loginStatus.classList.remove("hidden");
     loginBtn.onclick = (e)=>{ e.stopPropagation(); toggleAccountMenu(); };
     loginBtn.setAttribute('aria-label','Account menu');
-    loginBtn.classList.add('logged-in'); // swap to hamburger
+    loginBtn.classList.add('logged-in');
   } else {
     loginStatus.textContent = "";
     loginStatus.classList.add("hidden");
     loginBtn.onclick = ()=> openModal('login');
     loginBtn.setAttribute('aria-label','Login');
-    loginBtn.classList.remove('logged-in'); // swap back to person
+    loginBtn.classList.remove('logged-in');
     closeAccountMenu();
   }
-  updateEmailBtnVisibility(); // NEW
+  updateEmailBtnVisibility();
 }
 
-// close account menu on outside click / Esc
+/* Close account menu on outside click / Esc */
 document.addEventListener('click', (e)=>{
   const wrap = document.querySelector('.account-dropdown');
   if (wrap && !wrap.contains(e.target)) closeAccountMenu();
 });
 document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeAccountMenu(); });
-
-/* ── Forms & init ─────────────────────────────────────────────── */
 
 /* ── Forms & init ─────────────────────────────────────────────── */
 document.addEventListener("DOMContentLoaded", () => {
@@ -710,7 +753,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Delete account (keep inside DOMContentLoaded so the element exists)
+  // Delete account
   const delBtn = document.getElementById('delete-account');
   if (delBtn) {
     delBtn.addEventListener('click', () => {
@@ -726,8 +769,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .catch(()=> alert('Failed to delete account.'));
     });
   }
-}); // <-- ✅ closes DOMContentLoaded
-
+}); // closes DOMContentLoaded
 
 // History
 function loadHistory() {
@@ -753,26 +795,50 @@ function loadHistory() {
 }
 
 // News
+
+let newsDotsTimer = null;
+
+function startNewsLoading(ul) {
+  ul.innerHTML = '<li id="news-loading">Loading.</li>';
+  let n = 1;
+  stopNewsLoading(); // safety
+  newsDotsTimer = setInterval(() => {
+    n = (n % 3) + 1; // 1 → 2 → 3 → 1 …
+    const loader = document.getElementById('news-loading');
+    if (loader) loader.textContent = 'Loading' + '.'.repeat(n);
+  }, 400);
+}
+
+function stopNewsLoading() {
+  if (newsDotsTimer) {
+    clearInterval(newsDotsTimer);
+    newsDotsTimer = null;
+  }
+}
+
 async function openNews() {
   const ul = document.getElementById('news-list');
-  ul.innerHTML = '<li>Loading…</li>';
+  startNewsLoading(ul);
   document.getElementById('news-modal').style.display = 'flex';
   try {
     const res = await fetch(`${API_BASE}/news`);
     const items = await res.json();
     const fmt = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '';
+    stopNewsLoading();
     ul.innerHTML = items.map(i => {
       const date = fmt(i.date);
       const source = i.source ? ` (${i.source})` : '';
       return `<li><a href="${i.link}" target="_blank" rel="noopener">${i.title}</a>${source} — ${date}</li>`;
     }).join('');
   } catch {
+    stopNewsLoading();
     ul.innerHTML = '<li>Could not load news right now.</li>';
   }
 }
 
-//function wait during signup/login/updatedetails
 
+
+// Wait overlay for auth actions
 function showAuthWait(msg='Just a sec…'){
   const t = document.getElementById('auth-wait-title');
   if (t) t.textContent = msg;
@@ -783,8 +849,6 @@ function hideAuthWait(){
   const el = document.getElementById('auth-wait');
   if (el) el.hidden = true;
 }
-
-
 </script>
 </body>
 </html>

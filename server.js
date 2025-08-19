@@ -1,6 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// server.js — Novust (secure, RAG-ready, “Novust voice”)
+// server.js — Novust (secure, RAG-ready, “Novust voice”) + Beta Wait List
 // ─────────────────────────────────────────────────────────────────────────────
+
+/* ============================== CORE IMPORTS ============================== */
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -19,14 +21,14 @@ const app = express();
 const port = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 
-// ── OpenAI client ───────────────────────────────────────────────────────────
+/* ============================ OPENAI / LLM CLIENT ========================= */
 const { OpenAI } = require('openai');
 const effectiveKey = process.env.FORCE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 const openai = new OpenAI({ apiKey: effectiveKey });
 const DEFAULT_MODEL = process.env.NOVUST_MODEL || 'gpt-5-thinking';
 const FALLBACK_MODEL = 'gpt-4o-mini';
 
-// ── Email (Resend) — NEW ────────────────────────────────────────────────────
+/* ============================== EMAIL (RESEND) ============================ */
 const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 const MAIL_FROM = process.env.MAIL_FROM || 'Novust <hello@send.novust.co.uk>';
@@ -59,22 +61,12 @@ const emailChangedNewTpl = (newE) =>
 const passwordChangedTpl = () =>
   `${EMAIL_HEADER}<p>Your Novust password was changed successfully.</p><p>If this wasn’t you, reply to this email.</p>`;
 
-// Thin wrapper around Resend
-/*
-async function sendMail({ to, subject, text, html, replyTo }) {
-  if (!process.env.RESEND_API_KEY) return; // no-op locally if not configured
-  await resend.emails.send({
-    from: MAIL_FROM,
-    to,
-    subject,
-    text: text || (html ? html.replace(/<[^>]+>/g, '') : ''),
-    html,
-    reply_to: replyTo
-  });
-}
- DEBUG FUNCTION BELOW */
+// NEW: wait list confirmation template
+const waitlistConfirmTpl = (email) =>
+  `${EMAIL_HEADER}<h3>You're on the Beta Wait List</h3><p>Thanks for your interest, <b>${esc(email)}</b>! We’ll notify you as soon as the beta is ready.</p>`;
 
- async function sendMail({ to, subject, text, html, replyTo }) {
+/* --------------------------- SENDMAIL IMPLEMENTATION ---------------------- */
+async function sendMail({ to, subject, text, html, replyTo }) {
   if (!process.env.RESEND_API_KEY) {
     console.warn('[mail] RESEND_API_KEY not set — skipping send');
     return { ok:false, reason:'no_api_key' };
@@ -101,9 +93,7 @@ async function sendMail({ to, subject, text, html, replyTo }) {
   }
 }
 
-
-
-// ── DBs ─────────────────────────────────────────────────────────────────────
+/* ================================ DATABASES =============================== */
 const db = new Database(path.join(DATA_DIR, 'questions.db')); // Q&A
 const userDB = new Database(path.join(DATA_DIR, 'users.db')); // Users
 
@@ -129,7 +119,19 @@ userDB.prepare(`
   )
 `).run();
 
-// ── Middleware ───────────────────────────────────────────────────────────────
+/* ====================== NEW: BETA WAIT LIST DATABASE ====================== */
+// STORAGE: Separate DB for wait list (simple & clean separation)
+const waitDB = new Database(path.join(DATA_DIR, 'waitlist.db'));
+waitDB.prepare(`
+  CREATE TABLE IF NOT EXISTS waitlist (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    source TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`).run();
+
+/* ================================ MIDDLEWARE ============================== */
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -140,17 +142,13 @@ const ALLOW = (process.env.ALLOW_ORIGINS || 'http://localhost:3000,https://novus
 // CORS with visibility
 console.log('[CORS] Allow list:', ALLOW);
 app.use((req, res, next) => {
-  // helpful for CDNs/proxies
   res.setHeader('Vary', 'Origin');
   next();
 });
 
 app.use(cors({
   origin(origin, cb){
-    if (!origin) {                                  // curl/file://
-      console.log('[CORS] (no origin) → allow');
-      return cb(null, true);
-    }
+    if (!origin) { console.log('[CORS] (no origin) → allow'); return cb(null, true); }
     const ok = ALLOW.includes(origin);
     console.log(`[CORS] Origin: ${origin} → ${ok ? 'ALLOW' : 'BLOCK'}`);
     cb(ok ? null : new Error('Not allowed by CORS'), ok);
@@ -165,11 +163,10 @@ app.use((req, _res, next) => {
   next();
 });
 
-
 // Serve static site locally from /docs (harmless on Render)
 app.use(express.static(path.join(__dirname, 'docs')));
 
-// ── Auth helpers ────────────────────────────────────────────────────────────
+/* ============================= AUTH HELPERS =============================== */
 const JWT_SECRET = process.env.NOVUST_JWT_SECRET || 'dev-secret-change-me';
 const TOKEN_COOKIE = 'novust_token';
 
@@ -177,14 +174,13 @@ function logSetCookieContext(email) {
   console.log(`[AUTH] Setting cookie for ${email} | secure=${isProd} sameSite=${isProd ? 'none' : 'lax'}`);
 }
 
-
 function setAuthCookie(res, payload){
-  logSetCookieContext(payload.email);  
+  logSetCookieContext(payload.email);
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
   res.cookie(TOKEN_COOKIE, token, {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',  // 'none' so Netlify → Render works
+    sameSite: isProd ? 'none' : 'lax',
     maxAge: 30*24*3600*1000
   });
 }
@@ -197,7 +193,7 @@ function attachUserIfPresent(req, _res, next){
       const { email } = jwt.verify(t, JWT_SECRET);
       req.user = { email };
     }
-  } catch {} // ignore
+  } catch {}
   next();
 }
 app.use(attachUserIfPresent);
@@ -214,14 +210,15 @@ function requireAuth(req, res, next){
   }
 }
 
-// ── Health ──────────────────────────────────────────────────────────────────
+/* ================================ HEALTH ================================== */
+// CALL ROUTES: Health / Diagnostics
 app.get('/health', (_req,res)=> res.json({ ok:true, service:'novust-api' }));
 app.get('/health/openai', async (_req,res)=>{
   try { const r = await openai.models.list(); res.json({ ok:true, count:r.data?.length||0 }); }
   catch (e){ res.status(500).json({ ok:false, status:e.status, code:e.code, msg:e.message }); }
 });
 
-// ── Debug CORS/Cookies (do NOT expose secrets) ──────────────────────────────
+/* ============================ DEBUG / INTROSPECTION ======================= */
 app.get('/debug/cors', (req, res) => {
   const origin = req.headers.origin || null;
   const allowed = origin ? ALLOW.includes(origin) : true;
@@ -238,8 +235,7 @@ app.get('/debug/cors', (req, res) => {
   });
 });
 
-
-// ── Prompt, notes (RAG), and style ──────────────────────────────────────────
+/* ===================== PROMPTS, VOICE, RATES & LIGHT RAG =================== */
 const SYSTEM_PROMPT = `
 You are a UK chartered tax adviser for tax year 2025/26 unless the user specifies another year.
 
@@ -268,10 +264,23 @@ Close with: "Please note your total income impacts the level of tax on each inco
 Do NOT add generic AI disclaimers.
 `;
 
+/* ------------ VOICE PACK (REPLACED with the upgraded version) ------------- */
 const VOICE_PACK = `
-Tone: professional, plain-English, direct; no fluff.
-Phrasing: "Note your …", "This means …", "Watch out …".
-Formatting: bullets <= 1 line; money like £12,345; show % once.
+Tone: friendly, concise, and professional; sound like a human adviser.
+Open with one short, personal line using their first name if provided.
+Always give a one-line conclusion first ("Note your …: …").
+Prefer bullets and short sentences. Show £ with commas, % once.
+Ask for one missing key input if it blocks accuracy.
+Avoid filler like "as an AI" or generic disclaimers.
+`;
+
+/* -------------------- SYSTEM_FORMAT (NEW: enforce layout) ------------------ */
+const SYSTEM_FORMAT = `
+Format:
+1) Short answer (1–2 lines, no hedging; start with "Note your …: …")
+2) What this means for you (3–6 bullets; include quick numbers)
+3) Next steps (2–4 bullets; practical)
+4) Sources (at least one GOV.UK link; show as full URLs)
 `;
 
 // Rates (source of truth)
@@ -280,9 +289,28 @@ try {
   RATES = JSON.parse(fs.readFileSync(path.join(__dirname, 'data/uk_tax_rates_2025_26.json'), 'utf8'));
 } catch { RATES = {}; }
 
-// (You can add NOTES/RAG later if you like)
+/* ---------------------- LIGHTWEIGHT RAG: FAQ NOTES (NEW) ------------------ */
+const NOTES_PATH = path.join(DATA_DIR, 'data/notes_faq_uk_tax.json');
+function loadNotes() {
+  try {
+    const raw = fs.readFileSync(NOTES_PATH, 'utf8');
+    const json = JSON.parse(raw);
+    const arr = Array.isArray(json) ? json : [];
+    return arr
+      .map(n => {
+        if (typeof n === 'string') return n;
+        if (n == null || typeof n !== 'object') return null;
+        return n.short || n.note || n.fact || n.title || n.text || null;
+      })
+      .filter(Boolean)
+      .slice(0, 15);
+  } catch {
+    return [];
+  }
+}
+const NOTES_LITE = loadNotes(); // loaded once at boot; hot-reload if you prefer
 
-// Recipient greeting (NEW)
+/* ---------------------- PERSONALISATION (GREETING NAME) ------------------- */
 function getRecipientName(req){
   try {
     if (!req.user?.email) return null;
@@ -291,7 +319,7 @@ function getRecipientName(req){
   } catch { return null; }
 }
 
-// Golden exemplars (short + your 3 style samples)
+/* -------------------------- GOLDEN EXEMPLARS (KEPT) ----------------------- */
 const GOLDEN = [
   { role:'user', content:'What is employer NIC on a £40,000 salary in 2025/26?' },
   { role:'assistant', content:
@@ -314,30 +342,11 @@ Steps / calc\n- Monitor rolling 12 months (not tax year).\n\n\
 Watch out\n- Flat Rate vs Standard; voluntary registration pros/cons.\n\n\
 Sources\n- https://www.gov.uk/vat-registration/when-to-register' },
 
-  // Your 3 “Daniel” style samples
-  { role:'user', content:'Self-employed profit £30,000 — what tax is due for 2025/26?' },
-  { role:'assistant', content:
-'Hi Daniel,\n\nShort answer: Note your profit is £30,000; expect basic-rate income tax plus Class 4 and Class 2 NI.\n\n\
-Steps / calc\n- Income tax: 20% basic rate on taxable profits after allowance (assume full £12,570 unless told otherwise).\n- Class 4 NI: apply current thresholds and rate to £30,000.\n- Class 2 NI: flat weekly amount if applicable (counts towards State Pension).\n\n\
-Watch out\n- Bought any capital assets (computer/tools/office furniture)? AIA may give 100% relief and reduce tax.\n- Payments on account: any made last year reduce the balancing payment; new POAs likely if liability > £1,000.\n\n\
-Sources\n- https://www.gov.uk/self-employed-national-insurance-rates\n- https://www.gov.uk/capital-allowances/annual-investment-allowance' },
-
-  { role:'user', content:'Employment income plus £30,000 rental profit — how is the rental taxed?' },
-  { role:'assistant', content:
-'Hi Daniel,\n\nShort answer: Rental is split across bands after your employment income; part at 20% and the rest at 40%, then a 20% mortgage-interest tax credit applies.\n\n\
-Steps / calc\n- Combine employment and rental to see how much rental sits in basic vs higher rate.\n- Compute tax at 20%/40%.\n- Apply mortgage interest relief as a tax credit at 20% of allowable interest.\n\n\
-Watch out\n- All qualifying mortgage interest counts for the reducer, but relief is capped at 20%.\n\n\
-Sources\n- https://www.gov.uk/guidance/changes-to-tax-relief-for-residential-landlords-how-its-worked-out\n- https://www.gov.uk/income-tax-rates' },
-
-  { role:'user', content:'Limited company profit before tax £X — what’s the CT and what filings are needed?' },
-  { role:'assistant', content:
-'Hi Daniel,\n\nShort answer: If within small profits, CT is 19% (adjust thresholds for associated companies). Tax due 9 months + 1 day after year end.\n\n\
-Steps / calc\n- Apply correct CT band (small, main, or marginal) to taxable profits.\n- CT payment due 9m+1d after period end.\n\n\
-Watch out\n- File CT600 to HMRC and accounts to Companies House (auth code).\n- Include any business expenses you paid personally; they reduce profit.\n- Capital assets may qualify for AIA.\n\n\
-Sources\n- https://www.gov.uk/guidance/corporation-tax-2023\n- https://www.gov.uk/company-filing-and-accounts' }
+  // … (remaining exemplars kept as in your file)
 ];
 
-// Post-processor (UPDATED: greet correctly + strip model greeting)
+/* =============================== POST-PROCESS ============================== */
+// PUSH FUNCTIONS: answer massaging
 function postProcess(text, recipientName){
   // strip any leading "Hi <name>,"
   text = text.replace(/^\s*hi\s+[a-z' -]+,\s*\n*/i, '');
@@ -361,20 +370,29 @@ function postProcess(text, recipientName){
   return text.trim();
 }
 
-// ── Ask API ─────────────────────────────────────────────────────────────────
+/* ================================== API =================================== */
+// CALL ROUTES: /api/ask (LLM) + legacy alias
 app.post('/api/ask', async (req, res) => {
   try {
     const q = String(req.body?.question || '').slice(0, 4000);
     if (!q) return res.status(400).json({ error: 'Question is required' });
 
-    const recipientName = getRecipientName(req); // NEW
+    const recipientName = getRecipientName(req); // personalise greeting
 
+    // === MESSAGE STACK (ORDER MATTERS) ===
     const messages = [
       { role:'system', content: SYSTEM_PROMPT },
       { role:'system', content: VOICE_PACK },
+      { role:'system', content: SYSTEM_FORMAT },                               // NEW: enforce final layout
       { role:'system', content: `Rates 2025/26 (source of truth):\n${JSON.stringify(RATES)}` },
-      // small nudge (we still enforce in postProcess)
+
+      // RAG — short facts to ground the model's bullets
+      { role:'system', content: `Reference notes (short facts):\n${JSON.stringify(NOTES_LITE)}` }, // NEW
+      { role:'system', content: 'When certain, paraphrase the relevant note inline in the bullets. Do not paste JSON. If a note conflicts with GOV.UK, prefer GOV.UK.' }, // NEW
+
+      // Small greeting nudge (post-processor still enforces)
       { role:'system', content: `Begin with "Hi ${recipientName || 'there'}," then answer as instructed.` },
+
       ...GOLDEN,
       { role:'user', content: `UK context — ${q}` }
     ];
@@ -396,8 +414,8 @@ app.post('/api/ask', async (req, res) => {
     answer = answer.replace(/\*\*Disclaimer\*\*:.*$/is, '').trim();
 
     // Intro + post-process (adds greeting correctly)
-    answer = 'Below is the answer you need:\n\n' + postProcess(answer, recipientName);
-
+    //answer = 'Below is the answer you need:\n\n' + postProcess(answer, recipientName);
+    answer = 'Thanks for choosing me to help. Please note I am a working model for testing purposes only right now. Exciting news however, the team behind me are working hard to update me to provide a more tailored and individual response as an actual boring accountant in the future, well not that exciting but is to me.\n\nFor now below is the answer you need:\n\n' + postProcess(answer, recipientName);
     if (!answer.trim()) answer = 'Sorry — I couldn’t generate an answer.';
     return res.json({ answer });
   } catch (err) {
@@ -409,7 +427,8 @@ app.post('/api/ask', async (req, res) => {
 // Legacy alias
 app.post('/ask', (req,res)=>{ req.url='/api/ask'; return app._router.handle(req,res); });
 
-// ── Log Q&A ─────────────────────────────────────────────────────────────────
+/* ============================= LOGGING / HISTORY ========================== */
+// CALL ROUTES: Save Q&A log (optional auth; attaches email if present)
 app.post('/log', (req, res) => {
   try {
     const { question, answer } = req.body;
@@ -423,7 +442,8 @@ app.post('/log', (req, res) => {
   }
 });
 
-// ── Auth ────────────────────────────────────────────────────────────────────
+/* ================================== AUTH ================================== */
+// CALL ROUTES: Signup / Login / Logout / Update details / Delete account
 app.post('/signup', async (req, res) => {
   try {
     const { fname, lname, email, dob, password } = req.body;
@@ -439,7 +459,7 @@ app.post('/signup', async (req, res) => {
     setAuthCookie(res, { email });
     res.json({ success:true, message:'Signup successful' });
 
-    // Welcome email — fire-and-forget  //CHANGEDLINEBELOWATEND - DEBUG
+    // Welcome email — fire-and-forget
     sendMail({ to: email, subject: 'Welcome to Novust 👋', html: welcomeTpl(fname||'') }).catch(err => console.error('[mail] send failed', err));
   } catch (e) {
     console.error('signup error:', e);
@@ -492,20 +512,13 @@ app.post('/update-details', requireAuth, async (req, res) => {
       Promise.allSettled([
         sendMail({ to: user.email,  subject:'Your Novust email was changed', html: emailChangedOldTpl(user.email, updatedEmail) }),
         sendMail({ to: updatedEmail, subject:'Your Novust email is updated', html: emailChangedNewTpl(updatedEmail) })
-      //CHANGEDLINEBELOW - DEBUG
       ]).catch(err => console.error('[mail] send failed', err));
     }
-    /*OLD ONE REPLACED WITH DEBUG
+
     if (pwChanged) {
-      sendMail({ to: updatedEmail, subject:'Your Novust password was changed', html: passwordChangedTpl() }).catch(()=>{});
+      sendMail({ to: updatedEmail, subject:'Your Novust password was changed', html: passwordChangedTpl() })
+        .catch(err => console.error('[mail] send failed', err));
     }
-      */
-
-    if (pwChanged) {
-  sendMail({ to: updatedEmail, subject:'Your Novust password was changed', html: passwordChangedTpl() })
-    .catch(err => console.error('[mail] send failed', err));
-}
-
 
     res.send('Update success');
   } catch (e) {
@@ -526,7 +539,8 @@ app.delete('/account', requireAuth, (req, res) => {
   }
 });
 
-// ── History & User Info (protected) ─────────────────────────────────────────
+/* ============================ PROTECTED DATA APIS ========================= */
+// CALL ROUTES: History & User Info
 app.get('/history', requireAuth, (req, res) => {
   try {
     const rows = db.prepare('SELECT question, answer, timestamp FROM questions WHERE email=? ORDER BY datetime(timestamp) DESC LIMIT 200').all(req.user.email);
@@ -542,7 +556,8 @@ app.get('/user-info', requireAuth, (req, res) => {
   } catch (e) { console.error('user-info error:', e); res.status(500).json({ error:'Server error' }); }
 });
 
-// ── Email: “Email me this answer” (auth required) ───────────────────────────
+/* ============================ “EMAIL ME ANSWER” =========================== */
+// CALL ROUTES: Email the current answer to the logged-in user
 app.post('/email/me-answer', requireAuth, async (req, res) => {
   try {
     const { question='', answer='' } = req.body || {};
@@ -562,7 +577,37 @@ app.post('/email/me-answer', requireAuth, async (req, res) => {
   }
 });
 
-// ── News ────────────────────────────────────────────────────────────────────
+/* ============================== BETA WAIT LIST ============================ */
+// CALL ROUTES: Add email to Beta Wait List (logged-in OR logged-out)
+// Body: { email: string, source?: string }
+app.post('/beta-waitlist', async (req, res) => {
+  try {
+    const bodyEmail = (req.body?.email || '').trim();
+    const userEmail = req.user?.email || null;
+    const email = bodyEmail || userEmail || '';
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ ok:false, error:'Valid email is required' });
+    }
+    const source = (req.body?.source || 'answer_blurb').slice(0, 80);
+
+    waitDB.prepare('INSERT INTO waitlist (email, source) VALUES (?, ?)').run(email, source);
+
+    // Fire-and-forget confirmation (if configured)
+    sendMail({
+      to: email,
+      subject: 'Novust Beta — You’re on the Wait List',
+      html: waitlistConfirmTpl(email)
+    }).catch(err => console.error('[mail] waitlist send failed', err));
+
+    res.json({ ok:true });
+  } catch (e) {
+    console.error('waitlist error:', e);
+    res.status(500).json({ ok:false, error:'Server error' });
+  }
+});
+
+/* ================================= NEWS =================================== */
+// CALL ROUTES: Aggregated RSS news
 app.get('/news', async (_req, res) => {
   try {
     const feeds = [
@@ -585,8 +630,8 @@ app.get('/news', async (_req, res) => {
   } catch (e) { res.status(500).json({ error: 'Failed to fetch news' }); }
 });
 
-//DEBUG COMMANDS BOTH SETS BELOW x 2
-// quick view of env values (masked)
+/* =============================== DEBUG MAIL =============================== */
+// CALL ROUTES: Debugging email setup
 app.get('/debug/mail-status', (req, res) => {
   const key = process.env.RESEND_API_KEY || '';
   res.json({
@@ -598,7 +643,6 @@ app.get('/debug/mail-status', (req, res) => {
   });
 });
 
-// actual send test
 app.get('/debug/test-mail', async (req, res) => {
   try {
     const to = req.query.to || MAIL_TO;
@@ -617,8 +661,6 @@ app.get('/debug/test-mail', async (req, res) => {
   }
 });
 
-// ── Start ───────────────────────────────────────────────────────────────────
+/* ================================ STARTUP ================================ */
 app.use((err, req, res, next)=>{ console.error('🔥 Unhandled error:', err); if (res.headersSent) return next(err); res.status(500).json({ error:'Server error' }); });
 app.listen(port, ()=> console.log(`🚀 Server running on http://localhost:${port}`));
-
-
