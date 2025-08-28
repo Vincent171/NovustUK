@@ -53,10 +53,6 @@ const EMAIL_HEADER = `
   </div>
 `;
 
-
-
-
-
 // Email templates (with logo header)
 const welcomeTpl         = (name = '') =>
   `${EMAIL_HEADER}<h2>Welcome to Novust${name ? `, ${esc(name)}` : ''}!</h2><p>Thanks for signing up. You can save history, email answers to yourself and manage your account anytime.</p>`;
@@ -85,7 +81,6 @@ const resetCodeTpl = (email, code) =>
 /* ============================== STATE FLAGS =============================== */
 // Track whether this is the first question since process boot
 let firstAnswerServed = false;
-
 
 /* --------------------------- SENDMAIL IMPLEMENTATION ---------------------- */
 async function sendMail({ to, subject, text, html, replyTo }) {
@@ -149,7 +144,6 @@ userDB.prepare(`
     expires DATETIME NOT NULL
   )
 `).run();
-
 
 /* ====================== NEW: BETA WAIT LIST DATABASE ====================== */
 // STORAGE: Separate DB for wait list (simple & clean separation)
@@ -248,11 +242,10 @@ function validatePassword(pw) {
   return typeof pw === 'string' && /^(?=.*\d).{8,}$/.test(pw);
 }
 
-/* ============================== EMAIL NORMALISER ========================== */ // ★ NEW
+/* ============================== EMAIL NORMALISER ========================== */
 function normEmail(s) {
   return String(s || '').trim().toLowerCase();
 }
-
 
 /* ================================ HEALTH ================================== */
 // CALL ROUTES: Health / Diagnostics
@@ -325,6 +318,13 @@ Format:
 2) What this means for you (3–6 bullets; include quick numbers)
 3) Next steps (2–4 bullets; practical)
 4) Sources (at least one GOV.UK link; show as full URLs)
+`;
+
+/* -------------------- HARD FACTS GUARDRAIL (2025/26) --------------------- */
+const HARD_FACTS_2025_26 = `
+- Company car (electric, zero-emission) Benefit-in-Kind (BIK): 2% of list price in 2025/26 (then +1pp per year up to 2027/28). Source: https://www.gov.uk/guidance/company-car-benefit-rates
+- Dividend allowance: £500 for 2025/26. Source: https://www.gov.uk/tax-on-dividends
+- VAT registration threshold: £90,000 rolling 12 months. Source: https://www.gov.uk/vat-registration/when-to-register
 `;
 
 // Rates (source of truth)
@@ -403,6 +403,11 @@ function postProcess(text, recipientName){
     text = text.replace(/\b13\.8 ?%/gi, '15%');
   }
 
+  // EV BIK drift guard (some models recall old 0% rates)
+  if (/(benefit[- ]?in[- ]?kind|BIK)/i.test(text) && /electric|zero[- ]emission/i.test(text)) {
+    text = text.replace(/\b0\s*%\b/g, '2%');
+  }
+
   // prepend our greeting
   const name = (recipientName && String(recipientName).trim()) ? String(recipientName).trim() : 'there';
   text = `Hi ${name},\n\n` + text;
@@ -427,18 +432,29 @@ app.post('/api/ask', async (req, res) => {
     const messages = [
       { role:'system', content: SYSTEM_PROMPT },
       { role:'system', content: VOICE_PACK },
-      { role:'system', content: SYSTEM_FORMAT },                               // NEW: enforce final layout
+      { role:'system', content: SYSTEM_FORMAT },
+
+      // Keep rates as source of truth
       { role:'system', content: `Rates 2025/26 (source of truth):\n${JSON.stringify(RATES)}` },
 
       // RAG — short facts to ground the model's bullets
-      { role:'system', content: `Reference notes (short facts):\n${JSON.stringify(NOTES_LITE)}` }, // NEW
-      { role:'system', content: 'When certain, paraphrase the relevant note inline in the bullets. Do not paste JSON. If a note conflicts with GOV.UK, prefer GOV.UK.' }, // NEW
+      { role:'system', content: `Reference notes (short facts):\n${JSON.stringify(NOTES_LITE)}` },
+      { role:'system', content: 'When certain, paraphrase the relevant note inline in the bullets. Do not paste JSON. If a note conflicts with GOV.UK, prefer GOV.UK.' },
+
+      // NEW: Year guard (lock to 2025/26 unless user states another)
+      { role:'system', content: 'Year guard: Unless the user explicitly names a different tax year (e.g., “2024/25”, “2023/24”), interpret “this year/current rules/now/today” as 2025/26. If the user names a different year, use it and say so once.' },
+
+      // NEW: Hard facts not to contradict
+      { role:'system', content: `Hard facts for 2025/26 (non-negotiable; must match GOV.UK):\n${HARD_FACTS_2025_26}` },
+
+      // NEW: EV BIK safety rail
+      { role:'system', content: 'For company car BIK, do not use 0% for electric vehicles in 2025/26. The correct rate is 2%. Always include a GOV.UK link for BIK.' },
 
       // Small greeting nudge (post-processor still enforces)
       { role:'system', content: `Begin with "Hi ${recipientName || 'there'}," then answer as instructed.` },
 
       ...GOLDEN,
-      { role:'user', content: `UK context — ${q}` }
+      { role:'user', content: `UK context — assume 2025/26 unless I say otherwise — ${q}` }
     ];
 
     let answer = '';
@@ -458,14 +474,14 @@ app.post('/api/ask', async (req, res) => {
     answer = answer.replace(/\*\*Disclaimer\*\*:.*$/is, '').trim();
 
     // Intro + post-process (adds greeting correctly)
-// Only show long intro once per server process (first Q after page load)
-if (!firstAnswerServed) {
-  answer = 'Thanks for choosing me to help. I am a working model for testing purposes only right now. Exciting news however, the team behind me are working hard to update me to provide a more tailored and individual response as an actual boring accountant in the future, well not that exciting but is to me.\n\nFor now below is the answer you need:\n\n' 
-         + postProcess(answer, recipientName);
-  firstAnswerServed = true;
-} else {
-  answer = 'Novust Model Version - Alpha 1.6.4\n\n' + postProcess(answer, recipientName);
-}
+    // Only show long intro once per server process (first Q after page load)
+    if (!firstAnswerServed) {
+      answer = 'Thanks for choosing me to help. I am a working model for testing purposes only right now. Exciting news however, the team behind me are working hard to update me to provide a more tailored and individual response as an actual boring accountant in the future, well not that exciting but is to me.\n\nFor now below is the answer you need:\n\n' 
+             + postProcess(answer, recipientName);
+      firstAnswerServed = true;
+    } else {
+      answer = 'Novust Model Version - Alpha 1.6.4\n\n' + postProcess(answer, recipientName);
+    }
 
     if (!answer.trim()) answer = 'Sorry — I couldn’t generate an answer.';
     return res.json({ answer });
@@ -501,7 +517,7 @@ app.post('/signup', async (req, res) => {
     const email = normEmail(rawEmail); // ★
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
     if (!validatePassword(password)) {
-    return res.status(400).json({ error: 'Password must be at least 8 characters and include a number.' });
+      return res.status(400).json({ error: 'Password must be at least 8 characters and include a number.' });
     }
 
     const pwHash = await bcrypt.hash(password, 12);
@@ -561,10 +577,10 @@ app.post('/update-details', requireAuth, async (req, res) => {
     if (newEmail && newEmail !== user.email) { updates.push('email=?'); params.push(newEmail); updatedEmail = newEmail; emailChanged = true; }
     if (newPassword) {
       if (!validatePassword(newPassword)) {
-      return res.status(400).send('New password must be at least 8 characters and include a number.');
-    }
-    const hash = await bcrypt.hash(newPassword, 12);
-    updates.push('password_hash=?'); params.push(hash); pwChanged = true;
+        return res.status(400).send('New password must be at least 8 characters and include a number.');
+      }
+      const hash = await bcrypt.hash(newPassword, 12);
+      updates.push('password_hash=?'); params.push(hash); pwChanged = true;
     }
 
     params.push(user.email);
@@ -676,8 +692,6 @@ app.post('/auth/reset', async (req, res) => {
   }
 });
 
-
-
 /* ============================ PROTECTED DATA APIS ========================= */
 // CALL ROUTES: History & User Info
 app.get('/history', requireAuth, (req, res) => {
@@ -767,6 +781,69 @@ app.get('/news', async (_req, res) => {
     all.sort((a,b)=> new Date(b.date||0) - new Date(a.date||0));
     res.json(all.slice(0, 12));
   } catch (e) { res.status(500).json({ error: 'Failed to fetch news' }); }
+});
+
+/* ============================ ADMIN DATA EXPORTS ========================== */
+/* CALL ROUTES: Secure, read-only exports in CSV/JSON guarded by ADMIN_TOKEN
+   How to use:
+   1) Set ADMIN_TOKEN in your Render environment (strong random string).
+   2) GET:
+      - /admin/export/users.csv?token=YOUR_TOKEN
+      - /admin/export/password_resets.csv?token=YOUR_TOKEN
+      - /admin/export/questions.csv?token=YOUR_TOKEN
+      - /admin/export/waitlist.csv?token=YOUR_TOKEN
+      - /admin/export/users.json?token=YOUR_TOKEN
+      - /admin/export/password_resets.json?token=YOUR_TOKEN
+      - /admin/export/questions.json?token=YOUR_TOKEN
+      - /admin/export/waitlist.json?token=YOUR_TOKEN
+*/
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+function requireAdmin(req, res, next) {
+  const t = req.headers['x-admin-token'] || req.query.token || '';
+  if (!ADMIN_TOKEN || t !== ADMIN_TOKEN) return res.status(401).send('Unauthorized');
+  next();
+}
+function toCSV(rows){
+  if (!rows || rows.length === 0) return '';
+  const cols = Object.keys(rows[0]);
+  const esc = v => (v == null ? '' : String(v)).replace(/"/g, '""');
+  const header = cols.join(',');
+  const body = rows.map(r => cols.map(c => `"${esc(r[c])}"`).join(',')).join('\n');
+  return header + '\n' + body + '\n';
+}
+/* ---- CSV endpoints ---- */
+app.get('/admin/export/users.csv', requireAdmin, (req, res) => {
+  const rows = userDB.prepare('SELECT id,fname,lname,email,dob,timestamp FROM users ORDER BY id DESC').all();
+  res.set('Content-Type','text/csv'); res.attachment('users.csv'); res.send(toCSV(rows));
+});
+app.get('/admin/export/password_resets.csv', requireAdmin, (req, res) => {
+  const rows = userDB.prepare('SELECT email,code,expires FROM password_resets ORDER BY expires DESC').all();
+  res.set('Content-Type','text/csv'); res.attachment('password_resets.csv'); res.send(toCSV(rows));
+});
+app.get('/admin/export/questions.csv', requireAdmin, (req, res) => {
+  const rows = db.prepare('SELECT id,email,question,answer,timestamp FROM questions ORDER BY id DESC').all();
+  res.set('Content-Type','text/csv'); res.attachment('questions.csv'); res.send(toCSV(rows));
+});
+app.get('/admin/export/waitlist.csv', requireAdmin, (req, res) => {
+  const rows = waitDB.prepare('SELECT id,email,source,timestamp FROM waitlist ORDER BY id DESC').all();
+  res.set('Content-Type','text/csv'); res.attachment('waitlist.csv'); res.send(toCSV(rows));
+});
+/* ---- JSON endpoints (handy for quick checks) ---- */
+app.get('/admin/export/users.json', requireAdmin, (req, res) => {
+  const rows = userDB.prepare('SELECT id,fname,lname,email,dob,timestamp FROM users ORDER BY id DESC').all();
+  res.json(rows);
+});
+app.get('/admin/export/password_resets.json', requireAdmin, (req, res) => {
+  const rows = userDB.prepare('SELECT email,code,expires FROM password_resets ORDER BY expires DESC').all();
+  res.json(rows);
+});
+app.get('/admin/export/questions.json', requireAdmin, (req, res) => {
+  const rows = db.prepare('SELECT id,email,question,answer,timestamp FROM questions ORDER BY id DESC').all();
+  res.json(rows);
+});
+app.get('/admin/export/waitlist.json', requireAdmin, (req, res) => {
+  const rows = waitDB.prepare('SELECT id,email,source,timestamp FROM waitlist ORDER BY id DESC').all();
+  res.json(rows);
 });
 
 /* =============================== DEBUG MAIL =============================== */
